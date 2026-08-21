@@ -1,0 +1,9 @@
+import { api } from './client';
+
+export async function lookupStudent({ email, rollNumber }) {
+  const params = {};
+  if (email) params.email = email;
+  if (rollNumber) params.rollNumber = rollNumber;
+  const { data } = await api.get('/auth/lookup', { params });
+  return data;
+}
