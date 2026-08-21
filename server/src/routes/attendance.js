@@ -71,6 +71,57 @@ function isSessionOpen(session, now = new Date()) {
   return true;
 }
 
+router.put('/session/:sessionId/student/:studentId', requireAuth, requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const { sessionId, studentId } = req.params;
+    const { status, note, method } = req.body || {};
+
+    const VALID_STATUS = new Set(['present', 'late', 'absent', 'excused']);
+    const finalStatus = status || 'present';
+    if (!VALID_STATUS.has(finalStatus)) {
+      return bad(res, `status must be one of: ${Array.from(VALID_STATUS).join(', ')}`);
+    }
+
+    const finalMethod = method || 'manual';
+    if (!['face', 'manual', 'proxy'].includes(finalMethod)) {
+      return bad(res, "method must be one of: face, manual, proxy");
+    }
+
+    const session = await loadSession(sessionId);
+    if (!session) return bad(res, 'Session not found', 404);
+
+    if (req.user.role !== 'admin' && session.teacher_id !== req.user.id) {
+      return bad(res, 'Only the assigned teacher or an admin can update attendance for this session', 403);
+    }
+
+    const studentRow = await query(
+      `SELECT id, role, is_active FROM users WHERE id = $1 LIMIT 1`,
+      [studentId],
+    );
+    const stu = studentRow.rows[0];
+    if (!stu) return bad(res, 'Student not found', 404);
+    if (!stu.is_active) return bad(res, 'Student is not active', 403);
+    if (stu.role !== 'student') return bad(res, 'User is not a student', 403);
+
+    const upsert = await query(
+      `INSERT INTO attendance (session_id, student_id, status, confidence, method, note)
+       VALUES ($1, $2, $3, NULL, $4, $5)
+       ON CONFLICT (session_id, student_id) DO UPDATE
+         SET status = EXCLUDED.status,
+             method = EXCLUDED.method,
+             note = EXCLUDED.note,
+             marked_at = NOW()
+       RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, created_at, updated_at`,
+      [sessionId, studentId, finalStatus, finalMethod, note || null],
+    );
+    const attendanceRow = upsert.rows[0];
+
+    res.json({ attendance: publicAttendance(attendanceRow) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/mark-manual', requireAuth, requireRole('teacher', 'admin'), async (req, res, next) => {
   try {
     const { sessionId, studentId, status, note } = req.body || {};
@@ -102,27 +153,20 @@ router.post('/mark-manual', requireAuth, requireRole('teacher', 'admin'), async 
       return bad(res, `status must be one of: ${Array.from(VALID_STATUS).join(', ')}`);
     }
 
-    let attendanceRow;
-    try {
-      const ins = await query(
-        `INSERT INTO attendance (session_id, student_id, status, confidence, method, note)
-         VALUES ($1, $2, $3, NULL, 'manual', $4)
-         RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, created_at, updated_at`,
-        [sessionId, studentId, finalStatus, note || null],
-      );
-      attendanceRow = ins.rows[0];
-    } catch (err) {
-      if (err.code === '23505') {
-        return res.status(409).json({
-          error: 'Attendance already marked for this student in this session',
-          sessionId,
-          studentId,
-        });
-      }
-      throw err;
-    }
+    const upsert = await query(
+      `INSERT INTO attendance (session_id, student_id, status, confidence, method, note)
+       VALUES ($1, $2, $3, NULL, 'manual', $4)
+       ON CONFLICT (session_id, student_id) DO UPDATE
+         SET status = EXCLUDED.status,
+             method = 'manual',
+             note = COALESCE(EXCLUDED.note, attendance.note),
+             marked_at = NOW()
+       RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, created_at, updated_at`,
+      [sessionId, studentId, finalStatus, note || null],
+    );
+    const attendanceRow = upsert.rows[0];
 
-    res.status(201).json({ attendance: publicAttendance(attendanceRow) });
+    res.status(200).json({ attendance: publicAttendance(attendanceRow) });
   } catch (err) {
     next(err);
   }

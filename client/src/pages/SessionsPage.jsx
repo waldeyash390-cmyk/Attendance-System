@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { listSubjects } from '../api/subjects';
 import { listSessions, createSession, openSession, closeSession, updateSession, deleteSession } from '../api/sessions';
@@ -390,6 +391,8 @@ export default function SessionsPage() {
                         )}
                       </td>
                       <td className="table-actions">
+                        <Link className="btn-primary" to={`/sessions/${s.id}/live`}>Live</Link>
+                        {' '}
                         <button
                           className={s.isOpen ? 'btn-secondary' : 'btn-primary'}
                           onClick={() => handleToggle(s)}

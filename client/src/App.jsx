@@ -9,6 +9,7 @@ import FaceEnrollPage from './pages/FaceEnrollPage';
 import AttendancePage from './pages/AttendancePage';
 import SubjectsPage from './pages/SubjectsPage';
 import SessionsPage from './pages/SessionsPage';
+import LiveDashboardPage from './pages/LiveDashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -43,6 +44,14 @@ export default function App() {
               element={
                 <ProtectedRoute roles={['teacher', 'admin']}>
                   <SessionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="sessions/:sessionId/live"
+              element={
+                <ProtectedRoute roles={['teacher', 'admin']}>
+                  <LiveDashboardPage />
                 </ProtectedRoute>
               }
             />
