@@ -9,6 +9,7 @@ const sessionsRouter = require('./routes/sessions');
 const faceRouter = require('./routes/face');
 const attendanceRouter = require('./routes/attendance');
 const usersRouter = require('./routes/users');
+const analyticsRouter = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -23,6 +24,7 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/face', faceRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/analytics', analyticsRouter);
 
 app.get('/api/health', async (req, res) => {
   const payload = {

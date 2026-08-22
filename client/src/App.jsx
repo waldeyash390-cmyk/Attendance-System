@@ -10,6 +10,7 @@ import AttendancePage from './pages/AttendancePage';
 import SubjectsPage from './pages/SubjectsPage';
 import SessionsPage from './pages/SessionsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -52,6 +53,14 @@ export default function App() {
               element={
                 <ProtectedRoute roles={['teacher', 'admin']}>
                   <LiveDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="analytics"
+              element={
+                <ProtectedRoute roles={['teacher', 'admin']}>
+                  <AnalyticsPage />
                 </ProtectedRoute>
               }
             />

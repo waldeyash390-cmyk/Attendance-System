@@ -6,6 +6,7 @@ const TEACHER_NAV = [
   { to: '/subjects', label: 'Subjects' },
   { to: '/sessions', label: 'Sessions' },
   { to: '/attendance', label: 'Attendance' },
+  { to: '/analytics', label: 'Analytics' },
 ];
 
 const STUDENT_NAV = [
