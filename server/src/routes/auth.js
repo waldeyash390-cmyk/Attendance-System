@@ -23,7 +23,7 @@ function publicUser(row) {
 }
 router.post('/register', async (req, res, next) => {
   try {
-    const { email, password, fullName, role, rollNumber, department } = req.body || {};
+    const { email, password, fullName, role, rollNumber, department, inviteCode } = req.body || {};
     if (!email || !password || !fullName) {
       return bad(res, 'email, password and fullName are required');
     }
@@ -36,6 +36,15 @@ router.post('/register', async (req, res, next) => {
     }
     if (finalRole === 'student' && !rollNumber) {
       return bad(res, 'rollNumber is required for student role');
+    }
+    if (finalRole === 'teacher') {
+      const requiredCode = process.env.TEACHER_INVITE_CODE;
+      if (!requiredCode) {
+        return bad(res, 'Teacher registration is currently disabled', 403);
+      }
+      if (!inviteCode || inviteCode !== requiredCode) {
+        return bad(res, 'Invalid teacher invite code', 403);
+      }
     }
     const hash = await bcrypt.hash(password, ROUNDS);
     let row;

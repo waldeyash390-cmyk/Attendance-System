@@ -18,6 +18,7 @@ export default function RegisterPage() {
     role: 'student',
     rollNumber: '',
     department: '',
+    inviteCode: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -41,6 +42,10 @@ export default function RegisterPage() {
       setError('Roll number is required for students');
       return;
     }
+    if (form.role === 'teacher' && !form.inviteCode.trim()) {
+      setError('Teacher invite code is required');
+      return;
+    }
 
     const payload = {
       email: form.email.trim(),
@@ -49,6 +54,7 @@ export default function RegisterPage() {
       role: form.role,
     };
     if (form.role === 'student') payload.rollNumber = form.rollNumber.trim();
+    if (form.role === 'teacher') payload.inviteCode = form.inviteCode.trim();
     if (form.department.trim()) payload.department = form.department.trim();
 
     setSubmitting(true);
@@ -120,6 +126,18 @@ export default function RegisterPage() {
               value={form.rollNumber}
               onChange={(e) => update('rollNumber', e.target.value)}
               required={form.role === 'student'}
+            />
+          </label>
+        )}
+
+        {form.role === 'teacher' && (
+          <label>
+            <span>Teacher invite code</span>
+            <input
+              type="text"
+              value={form.inviteCode}
+              onChange={(e) => update('inviteCode', e.target.value)}
+              required
             />
           </label>
         )}
