@@ -47,6 +47,7 @@ function publicAttendance(row) {
     confidence: row.confidence === null ? null : Number(row.confidence),
     method: row.method,
     note: row.note,
+    livenessPassed: row.liveness_passed === null ? null : Boolean(row.liveness_passed),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -174,12 +175,21 @@ router.post('/mark-manual', requireAuth, requireRole('teacher', 'admin'), async 
 
 router.post('/mark', requireAuth, async (req, res, next) => {
   try {
-    const { sessionId, descriptor, threshold, status, note, method } = req.body || {};
+    const { sessionId, descriptor, threshold, status, note, method, livenessPassed } = req.body || {};
 
     if (!sessionId) return bad(res, 'sessionId is required');
     const normalized = normalizeDescriptor(descriptor);
     if (!normalized) {
       return bad(res, `descriptor must be an array of ${DESCRIPTOR_LENGTH} finite numbers`);
+    }
+
+    // Liveness gate: a face scan must come with proof-of-life (blink / head-turn)
+    // from the client. This rejects a still photo held up to the camera.
+    if (livenessPassed !== true) {
+      return res.status(403).json({
+        error: 'Liveness check required. Please blink naturally and try again.',
+        code: 'LIVENESS_REQUIRED',
+      });
     }
 
     let effectiveThreshold = DEFAULT_MATCH_THRESHOLD;
@@ -258,9 +268,9 @@ router.post('/mark', requireAuth, async (req, res, next) => {
     let attendanceRow;
     try {
       const ins = await query(
-        `INSERT INTO attendance (session_id, student_id, status, confidence, method, note)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, created_at, updated_at`,
+        `INSERT INTO attendance (session_id, student_id, status, confidence, method, note, liveness_passed)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+         RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, liveness_passed, created_at, updated_at`,
         [sessionId, userRow.id, finalStatus, confidence, finalMethod, note || null],
       );
       attendanceRow = ins.rows[0];
@@ -304,7 +314,8 @@ router.get('/session/:sessionId', requireAuth, async (req, res, next) => {
 
     const result = await query(
       `SELECT a.id, a.session_id, a.student_id, a.status, a.marked_at,
-              a.confidence, a.method, a.note, a.created_at, a.updated_at,
+              a.confidence, a.method, a.note, a.liveness_passed,
+              a.created_at, a.updated_at,
               u.full_name, u.email, u.roll_number
          FROM attendance a
          JOIN users u ON u.id = a.student_id
@@ -356,7 +367,7 @@ router.get('/student/:studentId', requireAuth, async (req, res, next) => {
 
     const attended = await query(
       `SELECT a.id, a.session_id, a.status, a.marked_at,
-              a.confidence, a.method, a.note,
+              a.confidence, a.method, a.note, a.liveness_passed,
               s.title AS session_title, s.subject_id, s.start_at, s.end_at,
               sub.code AS subject_code, sub.name AS subject_name
          FROM attendance a
@@ -388,6 +399,7 @@ router.get('/student/:studentId', requireAuth, async (req, res, next) => {
       markedAt: row.marked_at,
       confidence: row.confidence === null ? null : Number(row.confidence),
       method: row.method,
+      livenessPassed: row.liveness_passed === null ? null : Boolean(row.liveness_passed),
       note: row.note,
     }));
 

@@ -1,7 +1,11 @@
 import { api, extractError } from './client';
 
-export async function markAttendance({ sessionId, descriptor }) {
-  const { data } = await api.post('/attendance/mark', { sessionId, descriptor });
+export async function markAttendance({ sessionId, descriptor, livenessPassed }) {
+  const { data } = await api.post('/attendance/mark', {
+    sessionId,
+    descriptor,
+    livenessPassed: livenessPassed === true,
+  });
   return data;
 }
 

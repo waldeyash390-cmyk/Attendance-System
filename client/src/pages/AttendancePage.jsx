@@ -35,15 +35,32 @@ function StudentView({ user }) {
     loadHistory();
   }, [loadSessions, loadHistory]);
 
-  const handleCapture = useCallback(async (descriptor) => {
+  const handleCapture = useCallback(async (payload) => {
     setMessage('');
     setError('');
     if (!selectedSession) {
       setError('Select a session first.');
       return;
     }
+
+    let descriptor;
+    let livenessPassed = false;
+    if (payload && typeof payload === 'object' && Array.isArray(payload.descriptor)) {
+      descriptor = payload.descriptor;
+      livenessPassed = payload.livenessPassed === true;
+    } else if (Array.isArray(payload)) {
+      descriptor = payload;
+    } else {
+      setError('Invalid face capture payload.');
+      return;
+    }
+
     try {
-      const result = await markAttendance({ sessionId: selectedSession, descriptor });
+      const result = await markAttendance({
+        sessionId: selectedSession,
+        descriptor,
+        livenessPassed,
+      });
       const confPct = (result.match && result.match.confidence != null)
         ? Math.round(result.match.confidence * 100) + '%'
         : 'n/a';
@@ -73,7 +90,12 @@ function StudentView({ user }) {
         {error && <div className="alert error">{error}</div>}
         {message && <div className="alert success">{message}</div>}
 
-        <FaceCapture onCapture={handleCapture} buttonLabel="Scan and mark attendance" />
+        <FaceCapture
+          onCapture={handleCapture}
+          buttonLabel="Scan and mark attendance"
+          busyLabel="Verifying liveness..."
+          requireLiveness
+        />
       </div>
 
       <div className="card">

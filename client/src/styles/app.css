@@ -490,3 +490,11 @@ button:disabled,
 .face-capture button {
   align-self: flex-start;
 }
+
+.liveness-hint {
+  background: var(--warning-soft);
+  border: 1px solid #f0d68b;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: 0;
+}
