@@ -197,6 +197,33 @@ a:hover { text-decoration: underline; }
   box-shadow: inset 0 -2px 0 var(--primary);
 }
 
+/* Sign out is rendered inside the same nav as the page links so it
+   lives in the hamburger menu on every screen size. Visually it is
+   separated from the page links by a divider and uses a muted color so
+   it reads as a different kind of action, not another page. */
+.nav-link-action {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.nav-link-signout {
+  color: var(--error);
+  font-weight: 600;
+}
+.nav-link-signout:hover {
+  background: var(--error-soft);
+  color: var(--error);
+}
+.nav-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  align-self: center;
+}
+
 .user-box {
   display: flex;
   align-items: center;
@@ -511,6 +538,56 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
 .inline-filter.checkbox { gap: 6px; }
 .inline-filter.checkbox input { margin: 0; }
 
+/* Dropdown + action button row. The label is a flex column on its own
+   (text label stacked above the <select>); the action button sits next
+   to it, aligned to the bottom of the column so the button baseline
+   matches the select's baseline. On small screens the action button
+   drops to its own full-width row so the layout doesn't squish. */
+.filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.filter-row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.filter-row-field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.filter-row-field select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: #fff;
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.filter-row-field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.filter-row-action {
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+@media (max-width: 480px) {
+  .filter-row-action {
+    width: 100%;
+  }
+}
+
 /* ---------- Misc ---------- */
 
 .page-center {
@@ -584,6 +661,15 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
     color: var(--primary);
     font-weight: 600;
     box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  /* On mobile the divider between page links and Sign out becomes a
+     full-width horizontal rule and Sign out sits at the bottom of the
+     menu, clearly separated from navigation. */
+  .nav-divider {
+    width: auto;
+    height: 1px;
+    margin: 6px 0;
   }
 
   .app-main { padding: 20px 16px; }

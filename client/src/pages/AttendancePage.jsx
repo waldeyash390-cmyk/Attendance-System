@@ -468,8 +468,8 @@ function TeacherView() {
     <>
       <div className="card">
         <div className="card-header"><h2>Session attendance</h2></div>
-        <div className="inline-filter">
-          <label>
+        <div className="filter-row">
+          <label className="filter-row-field">
             <span>Session</span>
             <select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)}>
               <option value="">Select a session...</option>
@@ -480,7 +480,7 @@ function TeacherView() {
               ))}
             </select>
           </label>
-          <button type="button" className="btn-secondary" onClick={loadAttendance}>Refresh</button>
+          <button type="button" className="btn-secondary filter-row-action" onClick={loadAttendance}>Refresh</button>
         </div>
 
         {error && <div className="alert error">{error}</div>}

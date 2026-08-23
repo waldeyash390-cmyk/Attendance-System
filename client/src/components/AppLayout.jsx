@@ -100,6 +100,14 @@ export default function AppLayout() {
               {item.label}
             </NavLink>
           ))}
+          <div className="nav-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="nav-link nav-link-action nav-link-signout"
+            onClick={handleLogout}
+          >
+            Sign out
+          </button>
         </nav>
 
         <div className="user-box">
@@ -107,7 +115,6 @@ export default function AppLayout() {
             <div className="user-name">{user ? user.fullName : ''}</div>
             <div className="user-role muted small">{user ? user.role : ''}</div>
           </div>
-          <button className="btn-secondary" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
 

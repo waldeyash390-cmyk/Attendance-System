@@ -503,51 +503,6 @@ function RecentAttendanceCell({ sessionId }) {
   );
 }
 
-function BackendStatusBlock() {
-  const [health, setHealth] = useState(null);
-  const [error, setError] = useState(null);
-  useEffect(() => {
-    api.get('/health')
-      .then((r) => setHealth(r.data))
-      .catch((e) => setError((e && e.message) || 'Health check failed'));
-  }, []);
-  return (
-    <div className="card">
-      <h2>Backend status</h2>
-      {error && <div className="alert error">{error}</div>}
-      {health ? (
-        <ul className="kv">
-          <li><span>Service</span><strong>{health.service}</strong></li>
-          <li><span>Status</span><strong>{health.status}</strong></li>
-          <li><span>DB</span><strong>{health.db && health.db.ok ? 'ok' : 'unreachable'}</strong></li>
-          <li><span>Time</span><strong>{new Date((health.time || '').replace('Z', '')).toLocaleString()}</strong></li>
-        </ul>
-      ) : !error ? <p>Loading…</p> : null}
-    </div>
-  );
-}
-
-function NextStepsBlock({ role }) {
-  return (
-    <div className="card">
-      <h2>Next steps</h2>
-      <ul>
-        {role === 'teacher' ? (
-          <>
-            <li>Create subjects and sessions, then take attendance.</li>
-            <li>Use Analytics to export per-subject attendance as CSV.</li>
-          </>
-        ) : (
-          <>
-            <li>Enroll your face, then mark attendance during an open session.</li>
-            <li>Check your attendance summary at the top of this page after every class.</li>
-          </>
-        )}
-      </ul>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const { user } = useAuth();
   const isStudent = user && user.role === 'student';
@@ -564,9 +519,6 @@ export default function DashboardPage() {
 
       {isStudent && <StudentDashboard user={user} />}
       {isTeacher && <TeacherDashboard user={user} />}
-
-      <BackendStatusBlock />
-      <NextStepsBlock role={user ? user.role : null} />
     </section>
   );
 }
