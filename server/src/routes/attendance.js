@@ -393,25 +393,73 @@ router.get('/student/:studentId', requireAuth, async (req, res, next) => {
       [targetStudentId],
     );
 
-    const totalSessions = await query(
-      `SELECT COUNT(DISTINCT s.id)::int AS n
-         FROM sessions s
-         JOIN attendance a ON a.session_id = s.id
-        WHERE a.student_id = $1
-          AND s.end_at < NOW()`,
+    // Denominator = all ended sessions in subjects the student is
+    // associated with (i.e. has at least one attendance record in, of any
+    // status). Sessions with no record at all count as missed, same as an
+    // explicit absent. This is computed per-subject and then summed for the
+    // overall figure so the breakdown and overall stay in lockstep.
+    const breakdownRows = await query(
+      `WITH student_subjects AS (
+         SELECT DISTINCT s.subject_id
+           FROM attendance a
+           JOIN sessions s ON s.id = a.session_id
+          WHERE a.student_id = $1
+            AND s.subject_id IS NOT NULL
+       ),
+       subject_sessions AS (
+         SELECT s.id, s.subject_id
+           FROM sessions s
+           JOIN student_subjects ss ON ss.subject_id = s.subject_id
+          WHERE s.end_at < NOW()
+       ),
+       subject_present AS (
+         SELECT s.subject_id,
+                COUNT(DISTINCT s.id) FILTER (
+                  WHERE a.status IN ('present', 'late')
+                )::int AS attended,
+                COUNT(DISTINCT a.id)::int AS records
+           FROM sessions s
+           LEFT JOIN attendance a
+             ON a.session_id = s.id AND a.student_id = $1
+          WHERE s.end_at < NOW()
+            AND s.subject_id IN (SELECT subject_id FROM student_subjects)
+          GROUP BY s.subject_id
+       )
+       SELECT sub.id          AS subject_id,
+              sub.code        AS subject_code,
+              sub.name        AS subject_name,
+              COALESCE((SELECT COUNT(*) FROM subject_sessions ss WHERE ss.subject_id = sub.id), 0)::int AS total_sessions,
+              COALESCE(sp.attended, 0)::int   AS attended,
+              COALESCE(sp.records, 0)::int    AS records
+         FROM subjects sub
+         LEFT JOIN subject_present sp ON sp.subject_id = sub.id
+        WHERE sub.id IN (SELECT subject_id FROM student_subjects)`,
       [targetStudentId],
     );
-    const total = totalSessions.rows[0].n;
 
-    const seenSessions = new Set();
-    let presentRows = 0;
-    for (const row of attended.rows) {
-      if (seenSessions.has(row.session_id)) continue;
-      seenSessions.add(row.session_id);
-      if (row.status === 'present' || row.status === 'late') presentRows += 1;
-    }
+    let totalSessionsCount = 0;
+    let totalAttendedCount = 0;
+    const subjectsBreakdown = breakdownRows.rows.map((r) => {
+      const total = Number(r.total_sessions) || 0;
+      const attended = Number(r.attended) || 0;
+      totalSessionsCount += total;
+      totalAttendedCount += attended;
+      const pct = total > 0 ? Math.round((attended / total) * 10000) / 100 : 0;
+      return {
+        id: r.subject_id,
+        code: r.subject_code,
+        name: r.subject_name,
+        total,
+        attended,
+        records: Number(r.records) || 0,
+        missed: Math.max(0, total - attended),
+        percentage: pct,
+      };
+    });
 
-    let percentage = total > 0 ? Math.round((presentRows / total) * 10000) / 100 : 0;
+    let percentage = totalSessionsCount > 0
+      ? Math.round((totalAttendedCount / totalSessionsCount) * 10000) / 100
+      : 0;
     if (percentage > 100) percentage = 100;
 
     const history = attended.rows.map((row) => ({
@@ -438,10 +486,11 @@ router.get('/student/:studentId', requireAuth, async (req, res, next) => {
         department: stu.department,
       },
       stats: {
-        sessionsAttended: presentRows,
-        totalPastSessions: total,
+        sessionsAttended: totalAttendedCount,
+        totalPastSessions: totalSessionsCount,
         attendancePercentage: percentage,
       },
+      subjectsBreakdown,
       history,
     });
   } catch (err) {

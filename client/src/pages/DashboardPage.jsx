@@ -27,6 +27,7 @@ function formatDate(iso) {
 function StudentDashboard({ user }) {
   const [stats, setStats] = useState(null);
   const [history, setHistory] = useState([]);
+  const [subjectBreakdown, setSubjectBreakdown] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,8 +39,10 @@ function StudentDashboard({ user }) {
     api.get(`/attendance/student/${user.id}`)
       .then((r) => {
         if (cancelled) return;
-        setStats(r.data && r.data.stats ? r.data.stats : null);
-        setHistory(r.data && Array.isArray(r.data.history) ? r.data.history : []);
+        const data = r.data || {};
+        setStats(data.stats || null);
+        setHistory(Array.isArray(data.history) ? data.history : []);
+        setSubjectBreakdown(Array.isArray(data.subjectsBreakdown) ? data.subjectsBreakdown : []);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -56,39 +59,10 @@ function StudentDashboard({ user }) {
   const sessionsAttended = stats ? stats.sessionsAttended : 0;
   const totalPastSessions = stats ? stats.totalPastSessions : 0;
 
-  // Per-subject breakdown: count rows from history that are "present"/"late"
-  // versus total rows for that subject. This is honest about the denominator:
-  // it covers only sessions the student has a record against (capped at 500
-  // by the backend), not every session ever held.
-  const subjectBreakdown = useMemo(() => {
-    const map = new Map();
-    for (const row of history) {
-      const subj = row.subject;
-      if (!subj || !subj.id) continue;
-      const key = subj.id;
-      if (!map.has(key)) {
-        map.set(key, {
-          id: subj.id,
-          code: subj.code,
-          name: subj.name,
-          total: 0,
-          present: 0,
-          late: 0,
-        });
-      }
-      const entry = map.get(key);
-      entry.total += 1;
-      if (row.status === 'present') entry.present += 1;
-      else if (row.status === 'late') entry.late += 1;
-    }
-    const list = Array.from(map.values()).map((e) => {
-      const attended = e.present + e.late;
-      const pct = e.total > 0 ? Math.round((attended / e.total) * 10000) / 100 : 0;
-      return { ...e, attended, percentage: pct };
-    });
-    list.sort((a, b) => a.percentage - b.percentage);
-    return list;
-  }, [history]);
+  const sortedSubjects = useMemo(
+    () => subjectBreakdown.slice().sort((a, b) => a.percentage - b.percentage),
+    [subjectBreakdown],
+  );
 
   const recent = history.slice(0, 8);
 
@@ -130,22 +104,23 @@ function StudentDashboard({ user }) {
       <section className="card">
         <h2>By subject</h2>
         {loading && <p>Loading...</p>}
-        {!loading && subjectBreakdown.length === 0 && (
+        {!loading && sortedSubjects.length === 0 && (
           <p className="muted">No subject-wise attendance yet.</p>
         )}
-        {!loading && subjectBreakdown.length > 0 && (
+        {!loading && sortedSubjects.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Subject</th>
                   <th className="num">Attended</th>
+                  <th className="num">Sessions</th>
                   <th className="num">Records</th>
                   <th className="num">%</th>
                 </tr>
               </thead>
               <tbody>
-                {subjectBreakdown.map((s) => (
+                {sortedSubjects.map((s) => (
                   <tr key={s.id}>
                     <td>
                       <div className="subject-cell">
@@ -155,6 +130,7 @@ function StudentDashboard({ user }) {
                     </td>
                     <td className="num">{s.attended}</td>
                     <td className="num muted">{s.total}</td>
+                    <td className="num muted">{s.records}</td>
                     <td className={`num ${attendanceColorClass(s.percentage)}`}>
                       <strong>{s.percentage}%</strong>
                     </td>
@@ -163,8 +139,9 @@ function StudentDashboard({ user }) {
               </tbody>
             </table>
             <p className="muted small">
-              Percentages are computed from your recent marked records per subject
-              (capped at 500 most recent overall).
+              Sessions = total ended sessions for the subject (the denominator).
+              Sessions with no record at all count as missed, same as an explicit
+              absent.
             </p>
           </div>
         )}
