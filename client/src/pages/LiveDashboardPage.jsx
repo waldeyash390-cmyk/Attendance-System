@@ -11,6 +11,7 @@ import {
 import { listUsers } from '../api/users';
 import { api, extractError } from '../api/client';
 import { formatCoords } from '../lib/geo';
+import { StudentProfileModal } from '../components/StudentProfilePanel';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -31,6 +32,25 @@ function StatusBadge({ status }) {
   const cls = `badge badge-${status || 'closed'}`;
   const label = (status ? status[0].toUpperCase() + status.slice(1) : 'Unknown');
   return <span className={cls}>{label}</span>;
+}
+
+// Clickable student name with email subtext. Opens the StudentProfileModal
+// so a teacher can view/edit the student's profile without leaving the page.
+function StudentNameCell({ student, onOpen }) {
+  if (!student || !student.id) {
+    return <span className="muted">Unknown</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="student-name-button"
+      onClick={() => onOpen(student)}
+      title="View profile"
+    >
+      <strong>{student.fullName}</strong>
+      {student.email && <div className="muted small">{student.email}</div>}
+    </button>
+  );
 }
 
 function formatDateTime(iso) {
@@ -54,6 +74,7 @@ export default function LiveDashboardPage() {
   const [paused, setPaused] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [busyStudentId, setBusyStudentId] = useState(null);
+  const [profileModalStudent, setProfileModalStudent] = useState(null);
 
   const pollRef = useRef(null);
   const tickRef = useRef(null);
@@ -329,8 +350,7 @@ export default function LiveDashboardPage() {
                   {markedStudents.map(({ student, record }) => (
                     <tr key={student.id}>
                       <td>
-                        <strong>{student.fullName}</strong>
-                        <div className="muted small">{student.email}</div>
+                        <StudentNameCell student={student} onOpen={setProfileModalStudent} />
                       </td>
                       <td>{student.rollNumber || '-'}</td>
                       <td><StatusBadge status={record.status} /></td>
@@ -379,8 +399,7 @@ export default function LiveDashboardPage() {
                   {unmarkedStudents.map((s) => (
                     <tr key={s.id}>
                       <td>
-                        <strong>{s.fullName}</strong>
-                        <div className="muted small">{s.email}</div>
+                        <StudentNameCell student={s} onOpen={setProfileModalStudent} />
                       </td>
                       <td>{s.rollNumber || '-'}</td>
                       <td>
@@ -495,6 +514,13 @@ export default function LiveDashboardPage() {
         Logged in as <strong>{user ? user.fullName : ''}</strong> ({user ? user.role : ''}).
         {' '}The dashboard polls every {POLL_INTERVAL_MS / 1000}s; pause polling if you don't want updates.
       </p>
+
+      <StudentProfileModal
+        student={profileModalStudent}
+        open={Boolean(profileModalStudent)}
+        onClose={() => setProfileModalStudent(null)}
+        onProfileUpdated={() => loadAttendance()}
+      />
     </section>
   );
 }

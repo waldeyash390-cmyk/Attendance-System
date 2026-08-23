@@ -18,6 +18,7 @@ export default function RegisterPage() {
     role: 'student',
     rollNumber: '',
     department: '',
+    phoneNumber: '',
     inviteCode: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +29,14 @@ export default function RegisterPage() {
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  // Accept digits and an optional leading +. We strip spaces/dashes in the
+  // payload so the user can type "(555) 123-4567" if they want.
+  function isValidPhone(raw) {
+    const s = String(raw || '').trim().replace(/[\s\-()]/g, '');
+    if (!s) return false;
+    return /^\+?[0-9]{10,15}$/.test(s);
   }
 
   async function handleSubmit(e) {
@@ -42,6 +51,10 @@ export default function RegisterPage() {
       setError('Roll number is required for students');
       return;
     }
+    if (!isValidPhone(form.phoneNumber)) {
+      setError('Phone number is required (10-15 digits, optional leading +)');
+      return;
+    }
     if (form.role === 'teacher' && !form.inviteCode.trim()) {
       setError('Teacher invite code is required');
       return;
@@ -51,6 +64,7 @@ export default function RegisterPage() {
       email: form.email.trim(),
       password: form.password,
       fullName: form.fullName.trim(),
+      phoneNumber: form.phoneNumber.trim().replace(/[\s\-()]/g, ''),
       role: form.role,
     };
     if (form.role === 'student') payload.rollNumber = form.rollNumber.trim();
@@ -141,6 +155,20 @@ export default function RegisterPage() {
             />
           </label>
         )}
+
+        <label>
+          <span>Phone number</span>
+          <input
+            type="tel"
+            value={form.phoneNumber}
+            onChange={(e) => update('phoneNumber', e.target.value)}
+            required
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="10-15 digits"
+            pattern="\+?[0-9]{10,15}"
+          />
+        </label>
 
         <label>
           <span>Department (optional)</span>

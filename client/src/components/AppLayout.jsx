@@ -14,6 +14,7 @@ const STUDENT_NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/face-enroll', label: 'Face Enrollment' },
   { to: '/attendance', label: 'My Attendance' },
+  { to: '/profile', label: 'My Profile' },
 ];
 
 export default function AppLayout() {

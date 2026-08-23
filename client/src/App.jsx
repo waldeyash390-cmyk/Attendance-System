@@ -11,6 +11,7 @@ import SubjectsPage from './pages/SubjectsPage';
 import SessionsPage from './pages/SessionsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import StudentProfilePage from './pages/StudentProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -30,8 +31,16 @@ export default function App() {
             }
           >
             <Route index element={<DashboardPage />} />
-	<Route path="face-enroll" element={<FaceEnrollPage />} />
-<Route path="attendance" element={<AttendancePage />} />
+            <Route path="face-enroll" element={<FaceEnrollPage />} />
+            <Route path="attendance" element={<AttendancePage />} />
+            <Route
+              path="profile"
+              element={
+                <ProtectedRoute roles={['student']}>
+                  <StudentProfilePage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="subjects"
               element={

@@ -17,13 +17,31 @@ function publicUser(row) {
     role: row.role,
     rollNumber: row.roll_number,
     department: row.department,
+    phoneNumber: row.phone_number,
     isActive: row.is_active,
     createdAt: row.created_at,
   };
 }
+
+// Phone validation shared between register and the profile routes.
+// Accepts an optional leading + and 10 to 15 digits; strips spaces,
+// dashes, and parentheses so the user can type "(555) 123-4567" and
+// still register.
+function normalizePhone(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().replace(/[\s\-()]/g, '');
+  return s || null;
+}
+function isValidPhone(raw) {
+  if (raw == null) return false;
+  const s = String(raw).trim();
+  if (!s) return false;
+  return /^\+?[0-9]{10,15}$/.test(s);
+}
+
 router.post('/register', async (req, res, next) => {
   try {
-    const { email, password, fullName, role, rollNumber, department, inviteCode } = req.body || {};
+    const { email, password, fullName, role, rollNumber, department, phoneNumber, inviteCode } = req.body || {};
     if (!email || !password || !fullName) {
       return bad(res, 'email, password and fullName are required');
     }
@@ -36,6 +54,11 @@ router.post('/register', async (req, res, next) => {
     }
     if (finalRole === 'student' && !rollNumber) {
       return bad(res, 'rollNumber is required for student role');
+    }
+    // Phone number is now required for every account at signup time.
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (!isValidPhone(normalizedPhone)) {
+      return bad(res, 'phoneNumber is required (10-15 digits, optional leading +)');
     }
     if (finalRole === 'teacher') {
       const requiredCode = process.env.TEACHER_INVITE_CODE;
@@ -50,10 +73,10 @@ router.post('/register', async (req, res, next) => {
     let row;
     try {
       const result = await query(
-        `INSERT INTO users (email, password_hash, full_name, role, roll_number, department)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, email, full_name, role, roll_number, department, is_active, created_at`,
-        [String(email).toLowerCase().trim(), hash, fullName, finalRole, rollNumber || null, department || null],
+        `INSERT INTO users (email, password_hash, full_name, role, roll_number, department, phone_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, email, full_name, role, roll_number, department, phone_number, is_active, created_at`,
+        [String(email).toLowerCase().trim(), hash, fullName, finalRole, rollNumber || null, department || null, normalizedPhone],
       );
       row = result.rows[0];
     } catch (err) {
@@ -77,10 +100,10 @@ router.post('/login', async (req, res, next) => {
     const { email, password } = req.body || {};
     if (!email || !password) return bad(res, 'email and password are required');
     const result = await query(
-      `SELECT id, email, password_hash, full_name, role, roll_number, department, is_active, created_at
+      `SELECT id, email, password_hash, full_name, role, roll_number, department, phone_number, is_active, created_at
          FROM users
-        WHERE email = $1
-        LIMIT 1`,
+         WHERE email = $1
+         LIMIT 1`,
       [String(email).toLowerCase().trim()],
     );
     const row = result.rows[0];
@@ -96,10 +119,10 @@ router.post('/login', async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT id, email, full_name, role, roll_number, department, is_active, created_at
+      `SELECT id, email, full_name, role, roll_number, department, phone_number, is_active, created_at
          FROM users
-        WHERE id = $1
-        LIMIT 1`,
+         WHERE id = $1
+         LIMIT 1`,
       [req.user.id],
     );
     const row = result.rows[0];
@@ -118,12 +141,12 @@ router.get('/lookup', requireAuth, requireRole('teacher', 'admin'), async (req, 
     let result;
     if (email) {
       result = await query(
-        `SELECT id, email, full_name, role, roll_number FROM users WHERE email = $1 LIMIT 1`,
+        `SELECT id, email, full_name, role, roll_number, phone_number FROM users WHERE email = $1 LIMIT 1`,
         [String(email).toLowerCase().trim()],
       );
     } else {
       result = await query(
-        `SELECT id, email, full_name, role, roll_number FROM users WHERE roll_number = $1 LIMIT 1`,
+        `SELECT id, email, full_name, role, roll_number, phone_number FROM users WHERE roll_number = $1 LIMIT 1`,
         [rollNumber],
       );
     }

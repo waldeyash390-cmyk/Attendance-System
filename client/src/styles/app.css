@@ -1009,3 +1009,158 @@ tr.attempt-suspicious:nth-child(even) {
 @media (max-width: 640px) {
   .quick-links .btn-secondary { flex: 1 1 auto; }
 }
+
+/* ---------- Profile (student self + teacher view) ---------- */
+
+/* Clickable student-name cell inside data tables. Looks like plain text
+   until hovered, then shows it's clickable. */
+.student-name-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  border-radius: var(--radius-sm);
+}
+.student-name-button:hover strong {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.student-name-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Page-level "My profile" card for students. */
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-photo-block {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.profile-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+}
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.profile-avatar-initials {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.profile-photo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+.profile-photo-controls .btn-secondary { margin: 0; }
+
+/* Inline teacher panel rendered below a table row. */
+.profile-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 8px 0 12px;
+}
+
+.profile-panel-layout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.profile-panel-layout .profile-photo-block { flex: 0 0 auto; }
+.profile-panel-fields {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.profile-panel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+/* Modal overlay used when the page can't accommodate an inline expanded row. */
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.profile-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 720px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.profile-modal-header h2 { margin: 0; font-size: 15px; }
+
+.profile-modal .profile-panel {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .profile-avatar { width: 72px; height: 72px; }
+  .profile-avatar-initials { font-size: 22px; }
+  .profile-modal { max-height: calc(100vh - 24px); }
+}

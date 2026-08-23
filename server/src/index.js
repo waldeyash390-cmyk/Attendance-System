@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const db = require('./db');
@@ -10,6 +12,7 @@ const faceRouter = require('./routes/face');
 const attendanceRouter = require('./routes/attendance');
 const usersRouter = require('./routes/users');
 const analyticsRouter = require('./routes/analytics');
+const profileRouter = require('./routes/profile');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -25,6 +28,22 @@ app.use('/api/face', faceRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/profile', profileRouter);
+
+// Serve uploaded profile photos from server/uploads/. The URL stored on the
+// user record points here directly (e.g. /api/uploads/profile_xyz.jpg).
+const UPLOAD_DIR = path.resolve(__dirname, '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+app.use(
+  '/api/uploads',
+  express.static(UPLOAD_DIR, {
+    maxAge: '1d',
+    fallthrough: false,
+    index: false,
+  }),
+);
 
 app.get('/api/health', async (req, res) => {
   const payload = {

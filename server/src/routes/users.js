@@ -33,7 +33,7 @@ router.get('/', requireAuth, requireRole('teacher', 'admin'), async (req, res, n
     }
 
     const sql = `
-      SELECT id, email, full_name, role, roll_number, department, is_active, created_at
+      SELECT id, email, full_name, role, roll_number, department, phone_number, is_active, created_at
         FROM users
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY role ASC, full_name ASC
@@ -47,6 +47,7 @@ router.get('/', requireAuth, requireRole('teacher', 'admin'), async (req, res, n
       role: row.role,
       rollNumber: row.roll_number,
       department: row.department,
+      phoneNumber: row.phone_number,
       isActive: row.is_active,
       createdAt: row.created_at,
     }));

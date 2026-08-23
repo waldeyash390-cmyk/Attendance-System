@@ -6,6 +6,7 @@ import {
   getSubjectAnalytics,
   downloadSubjectAnalyticsCsv,
 } from '../api/analytics';
+import { StudentProfileModal } from '../components/StudentProfilePanel';
 
 const DEFAULT_THRESHOLD = 75;
 
@@ -30,6 +31,26 @@ function percentClass(percentage, threshold) {
   return 'pct-bad';
 }
 
+// Clickable student name + department subtext. Opens the StudentProfileModal
+// so the teacher can view/edit the student's profile without leaving the
+// analytics view.
+function StudentNameCell({ student, onOpen }) {
+  if (!student || !student.id) {
+    return <span className="muted">Unknown</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="student-name-button"
+      onClick={() => onOpen(student)}
+      title="View profile"
+    >
+      <strong>{student.fullName}</strong>
+      {student.department && <div className="muted small">{student.department}</div>}
+    </button>
+  );
+}
+
 export default function AnalyticsPage() {
   const { user } = useAuth();
 
@@ -42,6 +63,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  const [profileModalStudent, setProfileModalStudent] = useState(null);
 
   // Load subjects on mount.
   useEffect(() => {
@@ -279,8 +301,7 @@ export default function AnalyticsPage() {
                       <tr key={s.id} className="row-defaulter">
                         <td>{s.rollNumber || '-'}</td>
                         <td>
-                          <strong>{s.fullName}</strong>
-                          {s.department && <div className="muted small">{s.department}</div>}
+                          <StudentNameCell student={s} onOpen={setProfileModalStudent} />
                         </td>
                         <td>{s.email}</td>
                         <td>{s.attended}</td>
@@ -332,8 +353,7 @@ export default function AnalyticsPage() {
                       <tr key={s.id} className={s.percentage < threshold && s.sessionsHeld > 0 ? 'row-defaulter' : ''}>
                         <td>{s.rollNumber || '-'}</td>
                         <td>
-                          <strong>{s.fullName}</strong>
-                          {s.department && <div className="muted small">{s.department}</div>}
+                          <StudentNameCell student={s} onOpen={setProfileModalStudent} />
                         </td>
                         <td>{s.email}</td>
                         <td>{s.present}</td>
@@ -371,6 +391,13 @@ export default function AnalyticsPage() {
             {' · '}
             <Link to="/sessions">Manage sessions</Link>
           </p>
+
+          <StudentProfileModal
+            student={profileModalStudent}
+            open={Boolean(profileModalStudent)}
+            onClose={() => setProfileModalStudent(null)}
+            onProfileUpdated={() => fetchAnalytics()}
+          />
         </>
       )}
     </section>
