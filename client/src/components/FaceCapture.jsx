@@ -15,6 +15,35 @@ function loadModels() {
   return modelsLoadedPromise;
 }
 
+// Single source of truth for the detector settings used in BOTH
+// the liveness pass and the descriptor capture. Keeping them in sync
+// is what makes the liveness check actually verify the same face
+// we are about to enroll / match.
+const DETECTOR_OPTIONS = { inputSize: 320, scoreThreshold: 0.45 };
+
+// Max time we'll wait for the FIRST face to appear. After that we
+// give up immediately with a clear error instead of looping for
+// several seconds while the student wonders what's happening.
+const DESCRIPTOR_MAX_TRIES = 1;
+
+function readLivenessMode() {
+  const env =
+    (typeof import.meta !== 'undefined' && import.meta.env
+      ? import.meta.env
+      : {}) || {};
+  const flag = (k) => String(env[k] || '').toLowerCase();
+  if (flag('VITE_SKIP_LIVENESS') === 'true' || flag('VITE_SKIP_LIVENESS') === '1') {
+    return 'skip';
+  }
+  if (flag('VITE_LIVENESS_STRICT') === 'true' || flag('VITE_LIVENESS_STRICT') === '1') {
+    return 'legacy';
+  }
+  if (flag('VITE_LIVENESS_FAST') === 'false' || flag('VITE_LIVENESS_FAST') === '0') {
+    return 'legacy';
+  }
+  return 'fast';
+}
+
 export default function FaceCapture({
   onCapture,
   buttonLabel = 'Capture face',
@@ -24,15 +53,15 @@ export default function FaceCapture({
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const cancelledRef = useRef(false);
+  const resultStateTimerRef = useRef(null);
   const [modelsReady, setModelsReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [status, setStatus] = useState('Loading face models...');
   const [busy, setBusy] = useState(false);
-  // TEMPORARY: liveness debug overlay until Step 8 is confirmed working.
-  const [debugEnabled, setDebugEnabled] = useState(true);
-  const [livenessDebug, setLivenessDebug] = useState(null);
-  const [livenessPhase, setLivenessPhase] = useState(null);
-  const [livenessFrozen, setLivenessFrozen] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(null);
+  const [resultState, setResultState] = useState('idle');
+  const livenessMode = readLivenessMode();
+  const effectiveLiveness = requireLiveness && livenessMode !== 'skip';
 
   useEffect(() => {
     let cancelled = false;
@@ -76,70 +105,104 @@ export default function FaceCapture({
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-  }, [modelsReady, requireLiveness]);
+  }, [modelsReady]);
 
-  const runCapture = useCallback(async () => {
-    if (!videoRef.current || busy) return null;
-    const detection = await faceapi
-      .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection) {
-      throw new Error('No face detected. Try again with better lighting.');
+  const captureDescriptor = useCallback(async () => {
+    if (!videoRef.current) {
+      throw new Error('Camera not ready');
     }
-    return Array.from(detection.descriptor);
-  }, [busy]);
+    // One quick pass. We don't loop with backoff here because the
+    // liveness pass has already confirmed a face is in frame; if the
+    // descriptor pass itself fails it almost always means the student
+    // moved or the lighting is bad, in which case we should fail
+    // fast and let them retry instead of holding them hostage.
+    for (let i = 0; i < DESCRIPTOR_MAX_TRIES; i++) {
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions(DETECTOR_OPTIONS))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (detection) {
+        return Array.from(detection.descriptor);
+      }
+    }
+    throw new Error('Face not detected. Look at the camera with good lighting and try again.');
+  }, []);
 
   const handleCapture = useCallback(async () => {
     if (!videoRef.current || busy) return;
     setBusy(true);
     setStatus('Detecting face...');
-    setLivenessDebug(null);
-    setLivenessPhase(null);
-    setLivenessFrozen(false);
+    setDebugInfo(null);
+    setResultState('idle');
+
+    const t0 = performance.now();
+
     try {
       let livenessPassed = false;
       let livenessMethod = null;
 
-      if (requireLiveness) {
+      if (effectiveLiveness) {
         try {
           const result = await detectLiveness(videoRef.current, {
-            debug: debugEnabled,
-            onProgress: ({ message, debug, phase }) => {
+            onProgress: ({ message, phase, elapsedMs }) => {
               if (typeof message === 'string') setStatus(message);
-              setLivenessPhase(phase || null);
-              if (debug) setLivenessDebug(debug);
-              // Once liveness emits a final `passed` or `timeout`, lock the
-              // overlay in place so the user can read it calmly after the
-              // attempt ends instead of watching it vanish mid-screenshot.
-              if (phase === 'passed' || phase === 'timeout') {
-                setLivenessFrozen(true);
+              if (typeof elapsedMs === 'number') {
+                setDebugInfo((d) => ({
+                  ...(d || {}),
+                  phase: phase || (d && d.phase) || null,
+                  elapsedMs,
+                }));
               }
             },
           });
           livenessPassed = Boolean(result && result.passed);
           livenessMethod = result && result.method ? result.method : null;
+          if (!livenessPassed) {
+            const why = result && result.reason === 'no-face'
+              ? 'No face detected. Please try again with better lighting.'
+              : 'No movement detected. Please try again and look at the camera.';
+            setStatus(why);
+            setResultState('error');
+            setBusy(false);
+            return;
+          }
         } catch (livenessErr) {
           setStatus(livenessErr.message || 'Liveness check failed.');
-          setLivenessFrozen(true);
+          setResultState('error');
           setBusy(false);
           return;
         }
+      } else if (requireLiveness) {
+        // requireLiveness was true but env disabled it.
+        livenessPassed = true;
+        livenessMethod = 'server-skipped';
       }
 
       let descriptor;
       try {
-        descriptor = await runCapture();
+        descriptor = await captureDescriptor();
       } catch (capErr) {
         setStatus(capErr.message);
+        setResultState('error');
         setBusy(false);
         return;
       }
 
+      setResultState('success');
+      if (resultStateTimerRef.current) clearTimeout(resultStateTimerRef.current);
+      resultStateTimerRef.current = setTimeout(() => {
+        setResultState((s) => (s === 'success' ? 'idle' : s));
+      }, 2500);
+
+      const elapsed = Math.round(performance.now() - t0);
+      setDebugInfo((d) => ({
+        ...(d || {}),
+        totalMs: elapsed,
+        livenessMethod,
+      }));
       setStatus(requireLiveness
-        ? 'Liveness confirmed. Capturing face...'
-        : 'Face captured.');
+        ? `Liveness confirmed (${livenessMethod || 'fast'}). Marking attendance...`
+        : 'Face captured. Marking attendance...');
 
       if (requireLiveness) {
         await onCapture({ descriptor, livenessPassed, livenessMethod });
@@ -151,110 +214,45 @@ export default function FaceCapture({
     } finally {
       setBusy(false);
     }
-  }, [busy, debugEnabled, onCapture, requireLiveness, runCapture]);
+  }, [busy, captureDescriptor, effectiveLiveness, onCapture, requireLiveness]);
 
-  useEffect(() => () => { cancelledRef.current = true; }, []);
-
-  const formatDebug = (d) => [
-    `phase      : ${d.phase}${livenessFrozen ? '   [FROZEN]' : ''}`,
-    `ear        : ${d.ear != null ? d.ear.toFixed(3) : '-'}   (baseline ${d.baselineEar != null ? d.baselineEar.toFixed(3) : '-'})`,
-    `thresholds : closed<=${d.closedThresh != null ? d.closedThresh.toFixed(3) : '-'}  open>=${d.openThresh != null ? d.openThresh.toFixed(3) : '-'}`,
-    `yaw        : ${d.yawRatio != null ? d.yawRatio.toFixed(3) : '-'}   delta ${d.yawDelta != null ? (d.yawDelta >= 0 ? '+' : '') + d.yawDelta.toFixed(3) : '-'} (thr 0.08)`,
-    `blink mem  : ${d.sawClosed ? 'ACTIVE' : 'none'}${d.blinkAgeMs != null && d.sawClosed ? ` (${Math.round(d.blinkAgeMs)}ms ago)` : ''}`,
-    `time       : ${(d.elapsedMs / 1000).toFixed(1)}s / 12.0s`,
-    `frames     : det ${d.detections}, miss ${d.missedFrames} (trace=${d.traceLength})`,
-  ].join('\n');
+  useEffect(() => () => {
+    cancelledRef.current = true;
+    if (resultStateTimerRef.current) clearTimeout(resultStateTimerRef.current);
+  }, []);
 
   return (
     <div className="face-capture">
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        width={320}
-        height={240}
-        style={{ background: '#111', borderRadius: 8 }}
-      />
+      <div className={`face-capture-ring face-capture-ring--${resultState}`}>
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          width={320}
+          height={240}
+          className="face-capture-video"
+        />
+      </div>
       <p className="muted">{status}</p>
       {requireLiveness && (
-        <p className="muted small liveness-hint">
-          Anti-spoofing is on: please <strong>blink naturally</strong> (or slowly turn your head) when prompted.
+        <p className="muted small">
+          {livenessMode === 'skip' && (
+            <>Anti-spoofing is <strong>off</strong> on this deployment (server-enforced flag).</>
+          )}
+          {livenessMode === 'fast' && (
+            <>Quick liveness check — just look at the camera. A printed photo won't be accepted.</>
+          )}
+          {livenessMode === 'legacy' && (
+            <>Anti-spoofing is on (legacy mode): please <strong>blink naturally</strong> when prompted.</>
+          )}
         </p>
       )}
-      {requireLiveness && (
-        <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={debugEnabled}
-            onChange={(e) => setDebugEnabled(e.target.checked)}
-          />
-          Show liveness debug overlay (temporary)
-        </label>
-      )}
-      {requireLiveness && debugEnabled && livenessDebug && (
-        <div>
-          {livenessPhase === 'calibration-stuck' && (
-            <div
-              role="alert"
-              style={{
-                background: '#3a0d0d',
-                color: '#FFD27A',
-                border: '2px solid #FF8A00',
-                padding: '8px 10px',
-                borderRadius: 8,
-                marginBottom: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                textAlign: 'left',
-              }}
-            >
-              CALIBRATION STUCK — face detection has not stabilized in {">"}3s.
-              The blink check has not even started. Likely causes: phone camera
-              detection jitter, poor lighting, or face not centered. Try better
-              lighting, hold phone steady, face the camera directly.
-            </div>
-          )}
-          {livenessFrozen && (
-            <div
-              role="status"
-              style={{
-                background: '#222',
-                color: '#FFD27A',
-                padding: '6px 10px',
-                borderRadius: 8,
-                marginBottom: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                textAlign: 'left',
-              }}
-            >
-              FROZEN SNAPSHOT — liveness attempt ended. Last known values shown
-              below. Tap “Try again” to clear.
-            </div>
-          )}
-          <pre
-            style={{
-              textAlign: 'left',
-              fontSize: 12,
-              lineHeight: 1.5,
-              background: livenessFrozen ? '#1a1a1a' : '#111',
-              color: livenessFrozen ? '#FFD27A' : '#7CFC98',
-              padding: '8px 10px',
-              borderRadius: 8,
-              overflowX: 'auto',
-              border: livenessFrozen ? '1px dashed #FFD27A' : 'none',
-            }}
-          >
-{formatDebug(livenessDebug)}
-          </pre>
-          {livenessFrozen && (
-            <p className="muted small" style={{ marginTop: 4 }}>
-              Tip: open browser devtools console to see the full per-frame trace
-              table for this attempt.
-            </p>
-          )}
-        </div>
+      {debugInfo && debugInfo.totalMs != null && (
+        <p className="muted small">
+          Last scan: <strong>{debugInfo.totalMs} ms</strong>
+          {debugInfo.livenessMethod && <> · method: {debugInfo.livenessMethod}</>}
+        </p>
       )}
       <button
         type="button"

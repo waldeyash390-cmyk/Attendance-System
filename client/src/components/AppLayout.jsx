@@ -2,17 +2,17 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 const TEACHER_NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/subjects', label: 'Subjects' },
-  { to: '/sessions', label: 'Sessions' },
-  { to: '/attendance', label: 'Attendance' },
-  { to: '/analytics', label: 'Analytics' },
+  { to: '/', label: 'Dashboard', short: 'Home', end: true },
+  { to: '/subjects', label: 'Subjects', short: 'Subjects' },
+  { to: '/sessions', label: 'Sessions', short: 'Sessions' },
+  { to: '/attendance', label: 'Attendance', short: 'Attend.' },
+  { to: '/analytics', label: 'Analytics', short: 'Stats' },
 ];
 
 const STUDENT_NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/face-enroll', label: 'Face Enrollment' },
-  { to: '/attendance', label: 'My Attendance' },
+  { to: '/', label: 'Dashboard', short: 'Home', end: true },
+  { to: '/face-enroll', label: 'Face Enrollment', short: 'Enroll' },
+  { to: '/attendance', label: 'My Attendance', short: 'Attendance' },
 ];
 
 export default function AppLayout() {
@@ -38,9 +38,11 @@ export default function AppLayout() {
               key={item.to}
               to={item.to}
               end={item.end}
+              data-short={item.short}
               className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
             >
-              {item.label}
+              <span className="nav-label-full">{item.label}</span>
+              <span className="nav-label-short">{item.short}</span>
             </NavLink>
           ))}
         </nav>

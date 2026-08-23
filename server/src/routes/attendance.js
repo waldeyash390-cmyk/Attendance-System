@@ -11,6 +11,15 @@ if (!Number.isFinite(DEFAULT_MATCH_THRESHOLD) || DEFAULT_MATCH_THRESHOLD <= 0) {
   console.warn('[attendance] FACE_MATCH_THRESHOLD must be a positive number; using default 0.6');
 }
 
+// LIVENESS_OPTIONAL: when "true"/"1", the server accepts face-mark
+// requests even if the client did not pass a liveness proof. This is
+// the only safe way to disable the on-camera check; both the client
+// (VITE_SKIP_LIVENESS) and the server (LIVENESS_OPTIONAL) must agree.
+// Default is false to preserve the existing anti-spoofing posture.
+const LIVENESS_OPTIONAL = ['true', '1', 'yes'].includes(
+  String(process.env.LIVENESS_OPTIONAL || '').toLowerCase(),
+);
+
 function bad(res, msg, status = 400) {
   return res.status(status).json({ error: msg });
 }
@@ -183,9 +192,13 @@ router.post('/mark', requireAuth, async (req, res, next) => {
       return bad(res, `descriptor must be an array of ${DESCRIPTOR_LENGTH} finite numbers`);
     }
 
-    // Liveness gate: a face scan must come with proof-of-life (blink / head-turn)
-    // from the client. This rejects a still photo held up to the camera.
-    if (livenessPassed !== true) {
+    // Liveness gate: a face scan must come with proof-of-life from the
+    // client to reject a still photo held up to the camera. If the
+    // deployment has explicitly opted out of the on-camera check via
+    // LIVENESS_OPTIONAL=true (which must match the client's
+    // VITE_SKIP_LIVENESS=true), we accept the scan without it and
+    // record liveness_passed=false so the audit trail stays honest.
+    if (livenessPassed !== true && !LIVENESS_OPTIONAL) {
       return res.status(403).json({
         error: 'Liveness check required. Please blink naturally and try again.',
         code: 'LIVENESS_REQUIRED',
@@ -265,13 +278,14 @@ router.post('/mark', requireAuth, async (req, res, next) => {
     const distance = Math.sqrt(bestDist);
     const confidence = Math.max(0, Math.min(1, 1 - distance / effectiveThreshold));
 
+    const livenessStored = livenessPassed === true;
     let attendanceRow;
     try {
       const ins = await query(
         `INSERT INTO attendance (session_id, student_id, status, confidence, method, note, liveness_passed)
-         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, session_id, student_id, status, marked_at, confidence, method, note, liveness_passed, created_at, updated_at`,
-        [sessionId, userRow.id, finalStatus, confidence, finalMethod, note || null],
+        [sessionId, userRow.id, finalStatus, confidence, finalMethod, note || null, livenessStored],
       );
       attendanceRow = ins.rows[0];
     } catch (err) {

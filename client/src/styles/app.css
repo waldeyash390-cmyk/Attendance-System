@@ -127,6 +127,8 @@ a:hover { text-decoration: underline; }
   display: flex;
   gap: 4px;
   flex: 1;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .nav-link {
@@ -139,7 +141,10 @@ a:hover { text-decoration: underline; }
   font-size: 13px;
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
+.nav-link .nav-label-short { display: none; }
 .nav-link:hover { background: var(--secondary); color: var(--text); text-decoration: none; }
 .nav-link.active {
   background: var(--primary-soft);
@@ -467,9 +472,53 @@ button:disabled,
 
 @media (max-width: 720px) {
   .form-grid { grid-template-columns: 1fr; }
-  .app-header { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
-  .primary-nav { order: 3; width: 100%; overflow-x: auto; }
+  .app-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .primary-nav {
+    order: 0;
+    width: auto;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow: visible;
+    gap: 2px;
+  }
+  .nav-link {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .nav-link .nav-label-full { display: none; }
+  .nav-link .nav-label-short { display: inline; }
+  .user-box { gap: 6px; flex: 0 0 auto; }
+  .user-info { text-align: right; }
+  .user-name { font-size: 12px; }
+  .user-role { font-size: 10px; }
+  .user-box .btn-secondary { padding: 6px 10px; font-size: 12px; }
   .app-main { padding: 20px 16px; }
+}
+
+@media (max-width: 480px) {
+  .app-header { padding: 6px 10px; gap: 6px; }
+  .brand { font-size: 14px; }
+  .nav-link {
+    padding: 5px 7px;
+    font-size: 11px;
+  }
+  .nav-link .nav-label-full { display: none; }
+  .nav-link .nav-label-short { display: inline; }
+}
+
+@media (max-width: 400px) {
+  .app-header { padding: 6px 8px; gap: 4px; }
+  .brand { font-size: 13px; }
+  .nav-link {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .user-box .btn-secondary { padding: 5px 8px; font-size: 11px; }
 }
 
 /* ---------- Face capture ---------- */
@@ -482,13 +531,52 @@ button:disabled,
   margin-top: 14px;
 }
 
-.face-capture video {
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+.face-capture .face-capture-ring {
+  align-self: center;
+}
+
+.face-capture-ring {
+  --ring-size: 240px;
+  --ring-border: 4px;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #111;
+  border: var(--ring-border) solid #3b82f6;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04), 0 4px 14px rgba(0, 0, 0, 0.15);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.face-capture-ring--success {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18), 0 0 24px rgba(22, 163, 74, 0.35);
+}
+
+.face-capture-ring--error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.18), 0 0 24px rgba(220, 38, 38, 0.35);
+}
+
+.face-capture-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #111;
 }
 
 .face-capture button {
   align-self: flex-start;
+}
+
+@media (max-width: 480px) {
+  .face-capture-ring {
+    --ring-size: 220px;
+  }
 }
 
 .liveness-hint {

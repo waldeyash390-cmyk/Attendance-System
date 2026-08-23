@@ -1,42 +1,57 @@
 import * as faceapi from 'face-api.js';
 
-// --- Tunables (strict mode defaults) ---
+// --- Shared detector settings ---
+// These must match what FaceCapture.runCapture uses to compute the
+// enrollment descriptor, so the liveness check runs the same model
+// pass over the same video the final descriptor will come from.
+const DETECTOR_OPTIONS = { inputSize: 320, scoreThreshold: 0.45 };
+
+// --- Fast mode (default for daily attendance) ---
+// Real classrooms need sub-second face-scan. We do not try to wait for
+// a textbook blink; we just need any evidence of life beyond a static
+// photo. Two short windows back-to-back are enough to distinguish a
+// still printed photo from a real face in front of a camera:
+//
+//   1. collect a handful of EAR samples while the user is "looking" at
+//      the camera (~10-15 frames ≈ 0.4-0.6s). If the EAR varies by
+//      more than FAST_EAR_DELTA from the very first sample, the
+//      subject is alive (a printed photo cannot blink or twitch).
+//   2. if window 1 was perfectly still (e.g. someone staring very
+//      hard at the camera), do one quick re-check: take a second
+//      sample a short moment later and compare to the first.
+//
+// A still printed photo held in front of the camera will produce a
+// sequence of virtually identical EAR values and fail.
+const FAST_WINDOW_FRAMES = 12;          // ~0.5s at 80ms per frame
+const FAST_EAR_DELTA = 0.015;           // tiny but real (a blink is ~0.1+)
+const FAST_RECHECK_DELAY_MS = 200;      // one short re-sample
+const FAST_RECHECK_DELTA = 0.01;        // any small drift counts
+const FAST_OVERALL_BUDGET_MS = 1200;    // hard cap; we never block longer
+const FRAME_INTERVAL_MS = 80;
+
+// --- Old "strict / relaxed" tunables kept for the legacy path only ---
 const EAR_CLOSED_ABS_CAP = 0.22;
 const EAR_DROP_RATIO = 0.78;
 const EAR_OPEN_RATIO = 0.85;
 const YAW_DELTA_THRESHOLD = 0.08;
-const FRAME_INTERVAL_MS = 80;
 const MAX_DURATION_MS = 12000;
 const NO_BLINK_YAW_FALLBACK_MS = 5000;
 const BASELINE_FRAMES = 8;
 const MISS_GRACE_FRAMES = 3;
 const BLINK_MEMORY_MS = 1300;
-
-// --- Stuck-calibration detection ---
-// If we still haven't produced a baseline after this many ms of wall-clock
-// time (regardless of frame count), surface it loudly to the UI.
 const CALIBRATION_STUCK_MS = 3000;
 
-// --- Relaxed mode (hackathon fallback) ---
-// Activated when VITE_LIVENESS_RELAXED === "true" (or "1"). Lets the user
-// pass by either:
-//   * any non-zero detected yaw delta >= relaxedYawDelta, OR
-//   * any single "closed" EAR sample below the closed threshold (no need
-//     to observe a re-open), OR
-//   * any single face-motion sample (EAR or yaw varying by relaxedMotionDelta
-//     from the baseline), which catches a hand wave / lean-in too.
-function readRelaxedConfig() {
+function readModeConfig() {
   const env =
     (typeof import.meta !== 'undefined' && import.meta.env
       ? import.meta.env
       : {}) || {};
-  const flag = String(env.VITE_LIVENESS_RELAXED || '').toLowerCase();
-  const enabled = flag === 'true' || flag === '1' || flag === 'yes';
+  const flag = (k) => String(env[k] || '').toLowerCase();
   return {
-    enabled,
-    maxDurationMs: Number(env.VITE_LIVENESS_MAX_MS) || 8000,
-    yawDelta: Number(env.VITE_LIVENESS_YAW_DELTA) || 0.05,
-    motionDelta: Number(env.VITE_LIVENESS_MOTION_DELTA) || 0.02,
+    skip: flag('VITE_SKIP_LIVENESS') === 'true' || flag('VITE_SKIP_LIVENESS') === '1',
+    fast: flag('VITE_LIVENESS_FAST') !== 'false' && flag('VITE_LIVENESS_FAST') !== '0',
+    relaxed: flag('VITE_LIVENESS_RELAXED') === 'true' || flag('VITE_LIVENESS_RELAXED') === '1',
+    strict: flag('VITE_LIVENESS_STRICT') === 'true' || flag('VITE_LIVENESS_STRICT') === '1',
   };
 }
 
@@ -48,14 +63,8 @@ function dist(a, b) {
 
 function eyeAspectRatio(eye) {
   if (!eye || eye.length < 6) return null;
-  const p1 = eye[0];
-  const p2 = eye[1];
-  const p3 = eye[2];
-  const p4 = eye[3];
-  const p5 = eye[4];
-  const p6 = eye[5];
-  const vertical = (dist(p2, p6) + dist(p3, p5)) / 2;
-  const horizontal = dist(p1, p4);
+  const vertical = (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / 2;
+  const horizontal = dist(eye[0], eye[3]);
   if (horizontal <= 0) return null;
   return vertical / horizontal;
 }
@@ -69,16 +78,6 @@ function averageEar(landmarks) {
   if (l == null) return r;
   if (r == null) return l;
   return (l + r) / 2;
-}
-
-function noseToEyeCenterRatio(landmarks) {
-  const nose = landmarks.getNose()[3];
-  const leftEye = landmarks.getLeftEye()[0];
-  const rightEye = landmarks.getRightEye()[3];
-  if (!nose || !leftEye || !rightEye) return null;
-  const eyeMidX = (leftEye.x + rightEye.x) / 2;
-  const eyeSpan = Math.abs(rightEye.x - leftEye.x) || 1;
-  return (nose.x - eyeMidX) / eyeSpan;
 }
 
 function median(values) {
@@ -96,7 +95,122 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function detectLiveness(video, { onProgress, debug = false } = {}) {
+async function detectOneFrame(video) {
+  try {
+    return await faceapi
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions(DETECTOR_OPTIONS))
+      .withFaceLandmarks();
+  } catch {
+    return null;
+  }
+}
+
+// ---------- Fast path ----------
+//
+// Skips baseline calibration. On a real, live face, EAR naturally
+// jitters frame-to-frame (sub-pixel landmark noise + tiny head
+// movement). A static printed photo cannot reproduce that, so a
+// single tight window is enough for proof-of-life.
+//
+// Result is one of:
+//   { passed: true,  method: 'fast-motion' | 'fast-recheck' }
+//   { passed: false, reason: 'no-face' | 'still', detail: '...' }
+export async function detectLivenessFast(video, { onProgress } = {}) {
+  const startTime = Date.now();
+  const samples = [];
+
+  const tick = (phase, message, extra = {}) => {
+    if (typeof onProgress !== 'function') return;
+    onProgress({
+      phase,
+      message,
+      ...extra,
+      elapsedMs: Date.now() - startTime,
+    });
+  };
+
+  tick('starting', 'Quick liveness check...');
+
+  // Window 1: short burst, look for any natural EAR variation.
+  for (let i = 0; i < FAST_WINDOW_FRAMES; i++) {
+    if (Date.now() - startTime > FAST_OVERALL_BUDGET_MS) break;
+    const det = await detectOneFrame(video);
+    if (!det) {
+      tick('no-face', 'No face detected. Look at the camera.');
+      await sleep(FRAME_INTERVAL_MS);
+      continue;
+    }
+    const ear = averageEar(det.landmarks);
+    if (ear != null) samples.push(ear);
+    tick('sampling', `Verifying (${samples.length}/${FAST_WINDOW_FRAMES})...`, {
+      ear: round3(ear),
+    });
+
+    if (samples.length >= 2) {
+      const span = Math.max(...samples) - Math.min(...samples);
+      if (span >= FAST_EAR_DELTA) {
+        tick('passed', 'Liveness confirmed (instant).');
+        return { passed: true, method: 'fast-motion' };
+      }
+    }
+    await sleep(FRAME_INTERVAL_MS);
+  }
+
+  if (samples.length < 2) {
+    tick('no-face', 'No face detected. Hold the camera steady and try again.');
+    return { passed: false, reason: 'no-face' };
+  }
+
+  // Window 2: one quick re-check rather than a long wait.
+  const baseline = samples[0];
+  tick('recheck', 'Hold still, rechecking...');
+  await sleep(FAST_RECHECK_DELAY_MS);
+  const det2 = await detectOneFrame(video);
+  if (!det2) {
+    tick('no-face', 'Face lost. Please try again.');
+    return { passed: false, reason: 'no-face' };
+  }
+  const ear2 = averageEar(det2.landmarks);
+  if (ear2 != null && Math.abs(ear2 - baseline) >= FAST_RECHECK_DELTA) {
+    tick('passed', 'Liveness confirmed (recheck).');
+    return { passed: true, method: 'fast-recheck' };
+  }
+
+  tick('still', 'No movement detected. Please try again and look at the camera.');
+  return { passed: false, reason: 'still' };
+}
+
+// ---------- Legacy strict + relaxed path ----------
+// Kept available if a deployment explicitly wants the old behavior
+// (VITE_LIVENESS_FAST=false plus VITE_LIVENESS_RELAXED or
+// VITE_LIVENESS_STRICT). Not used by default for daily attendance.
+
+function readRelaxedConfig() {
+  const env =
+    (typeof import.meta !== 'undefined' && import.meta.env
+      ? import.meta.env
+      : {}) || {};
+  return {
+    enabled: String(env.VITE_LIVENESS_RELAXED || '').toLowerCase() === 'true'
+      || String(env.VITE_LIVENESS_RELAXED || '').toLowerCase() === '1'
+      || String(env.VITE_LIVENESS_RELAXED || '').toLowerCase() === 'yes',
+    maxDurationMs: Number(env.VITE_LIVENESS_MAX_MS) || 8000,
+    yawDelta: Number(env.VITE_LIVENESS_YAW_DELTA) || 0.05,
+    motionDelta: Number(env.VITE_LIVENESS_MOTION_DELTA) || 0.02,
+  };
+}
+
+function noseToEyeCenterRatio(landmarks) {
+  const nose = landmarks.getNose()[3];
+  const leftEye = landmarks.getLeftEye()[0];
+  const rightEye = landmarks.getRightEye()[3];
+  if (!nose || !leftEye || !rightEye) return null;
+  const eyeMidX = (leftEye.x + rightEye.x) / 2;
+  const eyeSpan = Math.abs(rightEye.x - leftEye.x) || 1;
+  return (nose.x - eyeMidX) / eyeSpan;
+}
+
+export async function detectLivenessLegacy(video, { onProgress, debug = false } = {}) {
   if (!video) {
     throw new Error('Video element is required for liveness check');
   }
@@ -107,9 +221,9 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
 
   let detections = 0;
   let missedFrames = 0;
-  let calibrationStartAt = null; // wall-clock when we began collecting baseline
+  let calibrationStartAt = null;
   let calibrationReportedStuck = false;
-  const trace = []; // full per-frame log, surfaced to console + freeze snapshot
+  const trace = [];
 
   const state = {
     baseline: null,
@@ -156,28 +270,6 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
     onProgress(payload);
   };
 
-  // Log the whole table once the run ends (pass or fail) so devtools shows it
-  // even if the user never screenshots the overlay.
-  const flushTrace = (reason) => {
-    if (typeof console === 'undefined') return;
-    try {
-      const tag = relaxed.enabled ? '[liveness:RELAXED]' : '[liveness:STRICT]';
-      console.group(`${tag} run ${reason} (${trace.length} frames, ${Date.now() - startTime}ms)`);
-      console.log('config', {
-        maxDuration,
-        baselineFrames: BASELINE_FRAMES,
-        closedThresh: state.thresholds ? round3(state.thresholds.closed) : null,
-        openThresh: state.thresholds ? round3(state.thresholds.open) : null,
-        yawDeltaThresh: relaxed.enabled ? relaxed.yawDelta : YAW_DELTA_THRESHOLD,
-        motionDeltaThresh: relaxed.enabled ? relaxed.motionDelta : null,
-      });
-      console.table(trace);
-      console.groupEnd();
-    } catch {
-      /* ignore */
-    }
-  };
-
   emit('starting', relaxed.enabled
     ? 'Preparing liveness check (relaxed mode)...'
     : 'Preparing liveness check...');
@@ -186,25 +278,7 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
     : 'Hold steady and blink naturally.');
 
   while (Date.now() - startTime < maxDuration) {
-    let detection = null;
-    try {
-      detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
-        .withFaceLandmarks();
-    } catch (err) {
-      emit('error', 'Detection error: ' + err.message);
-      trace.push({
-        t: Date.now() - startTime,
-        phase: 'error',
-        ear: null,
-        yawRatio: null,
-        baselineEar: state.baseline ? round3(state.baseline.ear) : null,
-        msg: err.message,
-      });
-      await sleep(FRAME_INTERVAL_MS);
-      continue;
-    }
-
+    const detection = await detectOneFrame(video);
     if (!detection) {
       missedFrames += 1;
       state.missStreak += 1;
@@ -213,12 +287,10 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
         phase: 'no-face',
         ear: null,
         yawRatio: null,
-        baselineEar: state.baseline ? round3(state.baseline.ear) : null,
         msg: 'miss ' + state.missStreak,
       });
 
       if (state.missStreak >= MISS_GRACE_FRAMES && state.baseline) {
-        // Wipe the baseline on persistent dropout so we re-calibrate.
         state.baseline = null;
         state.thresholds = null;
         state.samples = [];
@@ -229,9 +301,7 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
         calibrationReportedStuck = false;
         emit('no-face', 'No face detected. Look at the camera.');
       } else if (!state.baseline) {
-        if (calibrationStartAt == null) {
-          calibrationStartAt = Date.now();
-        }
+        if (calibrationStartAt == null) calibrationStartAt = Date.now();
         emit('no-face', 'No face detected. Look at the camera.');
       } else {
         emit('no-face', 'Hold still...', { transientMiss: true });
@@ -248,26 +318,10 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
     state.lastEar = ear;
     state.lastYawRatio = yawRatio;
 
-    // ---- Calibration ----
     if (!state.baseline) {
       if (calibrationStartAt == null) calibrationStartAt = Date.now();
+      if (ear != null && yawRatio != null) state.samples.push({ ear, yawRatio });
 
-      if (ear != null && yawRatio != null) {
-        state.samples.push({ ear, yawRatio });
-      }
-
-      trace.push({
-        t: Date.now() - startTime,
-        phase: 'baseline',
-        ear: round3(ear),
-        yawRatio: round3(yawRatio),
-        baselineEar: null,
-        msg: `samples ${state.samples.length}/${BASELINE_FRAMES}`,
-      });
-
-      // --- Stuck-calibration signal ---
-      // Distinct from "in progress": emitted with a separate phase and a
-      // big warning emoji so it can't be confused with normal calibration.
       const calibratingFor = Date.now() - calibrationStartAt;
       if (
         calibratingFor > CALIBRATION_STUCK_MS &&
@@ -277,8 +331,7 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
         calibrationReportedStuck = true;
         emit(
           'calibration-stuck',
-          `STILL CALIBRATING after ${(calibratingFor / 1000).toFixed(1)}s — face detection is unstable. Hold still, face the camera directly, and improve lighting.`,
-          { calibrationStuck: true, calibrationMs: calibratingFor, samples: state.samples.length },
+          `STILL CALIBRATING after ${(calibratingFor / 1000).toFixed(1)}s — face detection is unstable.`,
         );
       }
 
@@ -298,7 +351,7 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
       } else if (!calibrationReportedStuck) {
         emit(
           'baseline',
-          `Calibrating (${state.samples.length}/${BASELINE_FRAMES}), hold still and keep eyes open...`,
+          `Calibrating (${state.samples.length}/${BASELINE_FRAMES})...`,
         );
       }
       await sleep(FRAME_INTERVAL_MS);
@@ -306,9 +359,6 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
     }
 
     const now = Date.now();
-
-    // Expire stale blink memory so an old blink can't combine with a later
-    // open frame to fake a pass.
     if (state.sawClosed && now - state.blinkBottomAt > BLINK_MEMORY_MS) {
       state.sawClosed = false;
       state.blinkBottomEar = null;
@@ -320,33 +370,16 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
         ? yawRatio - state.baseline.yawRatio
         : null;
 
-    trace.push({
-      t: Date.now() - startTime,
-      phase: state.sawClosed ? 'blink-memory' : 'open',
-      ear: round3(ear),
-      yawRatio: round3(yawRatio),
-      baselineEar: round3(state.baseline.ear),
-      yawDelta: yawDelta != null ? round3(yawDelta) : null,
-      msg: state.sawClosed ? 'saw closed' : '',
-    });
-
-    // ---- Strict blink detection ----
     if (ear != null && ear <= state.thresholds.closed) {
-      if (!state.sawClosed || ear < state.blinkBottomEar) {
-        state.blinkBottomEar = ear;
-      }
+      if (!state.sawClosed || ear < state.blinkBottomEar) state.blinkBottomEar = ear;
       state.sawClosed = true;
       state.blinkBottomAt = now;
       emit('closing', 'Blink detected, now open your eyes.');
-
-      // Relaxed-mode shortcut: any closed-eye sample counts, no re-open needed.
       if (relaxed.enabled) {
-        flushTrace('pass:relaxed-blink');
         emit('passed', 'Liveness confirmed (relaxed blink).');
         return { passed: true, method: 'blink-relaxed' };
       }
     } else if (ear != null && ear >= state.thresholds.open && state.sawClosed) {
-      flushTrace('pass:blink');
       emit('passed', 'Liveness confirmed (blink).');
       return { passed: true, method: 'blink' };
     } else if (ear != null && state.sawClosed) {
@@ -355,27 +388,21 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
       emit('open', 'Eyes open. Blink to confirm.');
     }
 
-    // ---- Head-turn (strict: full threshold + grace window) ----
     if (
       !relaxed.enabled &&
       yawDelta != null &&
       Math.abs(yawDelta) >= YAW_DELTA_THRESHOLD &&
       now - startTime >= NO_BLINK_YAW_FALLBACK_MS
     ) {
-      flushTrace('pass:head-turn');
       emit('passed', 'Liveness confirmed (head turn).');
       return { passed: true, method: 'head-turn' };
     }
 
-    // ---- Relaxed-mode shortcuts ----
     if (relaxed.enabled) {
-      // (a) any noticeable head turn
       if (yawDelta != null && Math.abs(yawDelta) >= relaxed.yawDelta) {
-        flushTrace('pass:relaxed-yaw');
         emit('passed', 'Liveness confirmed (relaxed head motion).');
         return { passed: true, method: 'head-turn-relaxed' };
       }
-      // (b) any motion at all — ear drift OR yaw drift from baseline
       const earDrift =
         ear != null && state.baseline.ear != null
           ? Math.abs(ear - state.baseline.ear)
@@ -385,7 +412,6 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
         now - startTime >= NO_BLINK_YAW_FALLBACK_MS &&
         Math.max(earDrift, yawDrift) >= relaxed.motionDelta
       ) {
-        flushTrace('pass:relaxed-motion');
         emit('passed', 'Liveness confirmed (relaxed motion).');
         return { passed: true, method: 'motion-relaxed' };
       }
@@ -394,13 +420,44 @@ export async function detectLiveness(video, { onProgress, debug = false } = {}) 
     await sleep(FRAME_INTERVAL_MS);
   }
 
-  flushTrace('fail:timeout');
-  // Emit one last "frozen" update so the UI keeps the final overlay on screen
-  // even though we're about to throw.
-  emit(
-    'timeout',
-    'Liveness check timed out. Please blink naturally and try again.',
-    { frozen: true },
-  );
+  emit('timeout', 'Liveness check timed out. Please blink naturally and try again.', { frozen: true });
   throw new Error('Liveness check timed out. Please blink naturally and try again.');
+}
+
+// ---------- Public entry ----------
+//
+// Returns:
+//   { passed: true, method }   - liveness confirmed, descriptor capture
+//                                 can proceed.
+//   { passed: false, reason, error? }  - the caller should NOT submit to
+//                                 the server; surface the reason to the
+//                                 user. error is set when skip is on but
+//                                 the server also rejected.
+//
+// `mode` controls behavior:
+//   'skip'  - never call detectLiveness; pretend it passed.
+//   'fast'  - call detectLivenessFast (default).
+//   'legacy'- call detectLivenessLegacy (strict or relaxed).
+export async function runLiveness(video, { mode = 'fast', onProgress, debug = false } = {}) {
+  if (mode === 'skip') {
+    if (typeof onProgress === 'function') {
+      onProgress({ phase: 'skipped', message: 'Liveness check disabled.', elapsedMs: 0 });
+    }
+    return { passed: true, method: 'skipped' };
+  }
+  if (mode === 'fast') {
+    return detectLivenessFast(video, { onProgress });
+  }
+  if (mode === 'legacy') {
+    return detectLivenessLegacy(video, { onProgress, debug });
+  }
+  throw new Error('Unknown liveness mode: ' + mode);
+}
+
+export async function detectLiveness(video, opts = {}) {
+  const config = readModeConfig();
+  const mode = config.skip
+    ? 'skip'
+    : (config.fast && !config.strict ? 'fast' : 'legacy');
+  return runLiveness(video, { ...opts, mode });
 }
