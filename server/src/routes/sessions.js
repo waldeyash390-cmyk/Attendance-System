@@ -8,6 +8,43 @@ function bad(res, msg, status = 400) {
   return res.status(status).json({ error: msg });
 }
 
+// Per-session geofence config. Stored on the session record only — each
+// session can have its own location and radius. Null means geofencing is
+// disabled for that session.
+const DEFAULT_RADIUS_METERS = 100;
+const MAX_RADIUS_METERS = 100000;
+
+function parseGeofenceInput(body) {
+  const hasLat = body.campusLat !== undefined && body.campusLat !== null && body.campusLat !== '';
+  const hasLng = body.campusLng !== undefined && body.campusLng !== null && body.campusLng !== '';
+  const hasRadius = body.radiusMeters !== undefined && body.radiusMeters !== null && body.radiusMeters !== '';
+
+  if (hasLat !== hasLng) {
+    return { error: 'campusLat and campusLng must be provided together' };
+  }
+  if (!hasLat) return { campusLat: null, campusLng: null, radiusMeters: null };
+
+  const campusLat = Number(body.campusLat);
+  const campusLng = Number(body.campusLng);
+  if (!Number.isFinite(campusLat) || campusLat < -90 || campusLat > 90) {
+    return { error: 'campusLat must be a number between -90 and 90' };
+  }
+  if (!Number.isFinite(campusLng) || campusLng < -180 || campusLng > 180) {
+    return { error: 'campusLng must be a number between -180 and 180' };
+  }
+
+  let radiusMeters = DEFAULT_RADIUS_METERS;
+  if (hasRadius) {
+    radiusMeters = Number(body.radiusMeters);
+  }
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0 || radiusMeters > MAX_RADIUS_METERS) {
+    return { error: `radiusMeters must be a positive number up to ${MAX_RADIUS_METERS}` };
+  }
+  radiusMeters = Math.round(radiusMeters);
+
+  return { campusLat, campusLng, radiusMeters };
+}
+
 function publicSession(row) {
   if (!row) return null;
   return {
@@ -22,15 +59,31 @@ function publicSession(row) {
     isOpen: row.is_open,
     opensAt: row.opens_at,
     closesAt: row.closes_at,
+    campusLat: row.campus_lat === null || row.campus_lat === undefined ? null : Number(row.campus_lat),
+    campusLng: row.campus_lng === null || row.campus_lng === undefined ? null : Number(row.campus_lng),
+    radiusMeters: row.radius_meters === null || row.radius_meters === undefined ? null : Number(row.radius_meters),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
+const SESSION_SELECT_COLUMNS = `
+  s.id, s.subject_id, s.teacher_id, s.title, s.start_at, s.end_at,
+  s.location, s.is_open, s.opens_at, s.closes_at,
+  s.campus_lat, s.campus_lng, s.radius_meters,
+  s.created_at, s.updated_at
+`;
+
+const SESSION_RETURNING_COLUMNS = `
+  id, subject_id, teacher_id, title, start_at, end_at,
+  location, is_open, opens_at, closes_at,
+  campus_lat, campus_lng, radius_meters,
+  created_at, updated_at
+`;
+
 async function loadSession(id) {
   const result = await query(
-    `SELECT s.id, s.subject_id, s.teacher_id, s.title, s.start_at, s.end_at,
-            s.location, s.is_open, s.opens_at, s.closes_at, s.created_at, s.updated_at,
+    `SELECT ${SESSION_SELECT_COLUMNS},
             u.full_name AS teacher_name
        FROM sessions s
        LEFT JOIN users u ON u.id = s.teacher_id
@@ -58,8 +111,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (upcoming === 'true') where.push('s.end_at >= NOW()');
 
     const sql = `
-      SELECT s.id, s.subject_id, s.teacher_id, s.title, s.start_at, s.end_at,
-             s.location, s.is_open, s.opens_at, s.closes_at, s.created_at, s.updated_at,
+      SELECT ${SESSION_SELECT_COLUMNS},
              u.full_name AS teacher_name
         FROM sessions s
         LEFT JOIN users u ON u.id = s.teacher_id
@@ -120,13 +172,18 @@ router.post('/', requireAuth, requireRole('teacher', 'admin'), async (req, res, 
       return bad(res, 'Assigned user must have teacher or admin role', 400);
     }
 
+    const geo = parseGeofenceInput(req.body || {});
+    if (geo.error) return bad(res, geo.error);
+
     const ins = await query(
       `INSERT INTO sessions
-         (subject_id, teacher_id, title, start_at, end_at, location, is_open, opens_at, closes_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, subject_id, teacher_id, title, start_at, end_at, location, is_open, opens_at, closes_at, created_at, updated_at`,
+          (subject_id, teacher_id, title, start_at, end_at, location, is_open, opens_at, closes_at,
+           campus_lat, campus_lng, radius_meters)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING ${SESSION_RETURNING_COLUMNS}`,
       [subjectId, effectiveTeacherId, title || null, start.toISOString(), end.toISOString(),
-       location || null, isOpen !== undefined ? Boolean(isOpen) : true, opens ? opens.toISOString() : null, closes ? closes.toISOString() : null],
+       location || null, isOpen !== undefined ? Boolean(isOpen) : true, opens ? opens.toISOString() : null, closes ? closes.toISOString() : null,
+       geo.campusLat, geo.campusLng, geo.radiusMeters],
     );
     const row = ins.rows[0];
     const full = await loadSession(row.id);

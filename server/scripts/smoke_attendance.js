@@ -41,6 +41,7 @@ function ok(label, cond, extra) {
   console.log('--- registering users ---');
   const tReg = await http('POST', '/api/auth/register', {
     email: teacherEmail, password: 'password123', fullName: 'Att Teacher', role: 'teacher',
+    inviteCode: process.env.TEACHER_INVITE_CODE,
   });
   ok('teacher register', tReg.status === 201, 'status=' + tReg.status);
   const teacherToken = tReg.body.token;
@@ -87,7 +88,7 @@ function ok(label, cond, extra) {
 
   console.log('--- test: match success (studentA live descriptor) ---');
   const markA = await http('POST', '/api/attendance/mark', {
-    sessionId, descriptor: descA,
+    sessionId, descriptor: descA, livenessPassed: true,
   }, studentAToken);
   ok('mark studentA status=201', markA.status === 201, 'status=' + markA.status);
   ok('mark studentA matched userId', markA.body && markA.body.match && markA.body.match.userId === studentAId);
@@ -95,13 +96,13 @@ function ok(label, cond, extra) {
   ok('mark studentA confidence present', markA.body && markA.body.match && typeof markA.body.match.confidence === 'number');
 
   console.log('--- test: duplicate attendance rejection ---');
-  const dup = await http('POST', '/api/attendance/mark', { sessionId, descriptor: descA }, studentAToken);
+  const dup = await http('POST', '/api/attendance/mark', { sessionId, descriptor: descA, livenessPassed: true }, studentAToken);
   ok('duplicate rejected status=409', dup.status === 409, 'status=' + dup.status);
   ok('duplicate error message', dup.body && /already marked/i.test(dup.body.error || ''));
 
   console.log('--- test: threshold rejection (random descriptor) ---');
   const noise = makeDescriptor(999);
-  const noMatch = await http('POST', '/api/attendance/mark', { sessionId, descriptor: noise }, teacherToken);
+  const noMatch = await http('POST', '/api/attendance/mark', { sessionId, descriptor: noise, livenessPassed: true }, teacherToken);
   ok('no-match status=404', noMatch.status === 404, 'status=' + noMatch.status);
   ok('no-match bestDistance returned', noMatch.body && typeof noMatch.body.bestDistance === 'number');
   ok('no-match threshold returned', noMatch.body && typeof noMatch.body.threshold === 'number');
@@ -110,7 +111,7 @@ function ok(label, cond, extra) {
   // slightly perturbed version of A
   const perturbed = descA.map((v) => v + 0.0005);
   const tight = await http('POST', '/api/attendance/mark', {
-    sessionId, descriptor: perturbed, threshold: 0.0001,
+    sessionId, descriptor: perturbed, threshold: 0.0001, livenessPassed: true,
   }, teacherToken);
   ok('tight-threshold rejected 404', tight.status === 404, 'status=' + tight.status);
 
@@ -118,7 +119,7 @@ function ok(label, cond, extra) {
   const close = await http('POST', `/api/sessions/${sessionId}/close`, {}, teacherToken);
   ok('session close', close.status === 200);
   const closed = await http('POST', '/api/attendance/mark', {
-    sessionId, descriptor: descB,
+    sessionId, descriptor: descB, livenessPassed: true,
   }, sBReg.body.token);
   ok('closed session rejected 409', closed.status === 409, 'status=' + closed.status);
 

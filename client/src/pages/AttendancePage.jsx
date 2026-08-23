@@ -4,6 +4,7 @@ import FaceCapture from '../components/FaceCapture';
 import { markAttendance, getSessionAttendance, getStudentAttendance } from '../api/attendance';
 import { lookupStudent } from '../api/auth';
 import { listSubjects } from '../api/subjects';
+import { getCurrentPosition, haversineDistanceMeters } from '../lib/geo';
 import { api, extractError } from '../api/client';
 
 function formatShortDateTime(iso) {
@@ -22,6 +23,43 @@ function sessionLabel(subject, session) {
   return `${subjectPart}${titlePart} - ${formatShortDateTime(session.startAt)}`;
 }
 
+// Prominent in/out-of-campus status banner shown to students right after a
+// location check (and before/during marking attendance). Visibility is the
+// whole point — this is intentionally large and unmistakable, distinct
+// from the small inline `.alert` used for follow-up messages.
+function GeoStatusBanner({ status }) {
+  if (!status) return null;
+  const inside = status.kind === 'in';
+  const distance = status.distanceMeters;
+  const cls = inside ? 'geo-banner geo-banner-in' : 'geo-banner geo-banner-out';
+  return (
+    <div className={cls} role={inside ? 'status' : 'alert'} aria-live="polite">
+      <div className="geo-banner-icon" aria-hidden="true">
+        {inside ? '✓' : '✕'}
+      </div>
+      <div className="geo-banner-body">
+        <div className="geo-banner-title">
+          {inside ? 'You are IN CAMPUS' : 'You are OUT OF CAMPUS'}
+        </div>
+        <div className="geo-banner-sub">
+          {inside ? (
+            <>
+              You are inside the session radius
+              {distance != null ? ` (${Math.round(distance)} m from the session location)` : ''}.
+              You can proceed to mark attendance.
+            </>
+          ) : (
+            <>
+              {distance != null && `${Math.round(distance)} m away from the session location. `}
+              Attendance was <strong>NOT</strong> counted. Move closer to the session location and try again.
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudentView({ user }) {
   const [sessions, setSessions] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -29,12 +67,28 @@ function StudentView({ user }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [history, setHistory] = useState(null);
+  // Last computed in/out-of-campus check for the selected session.
+  // Shape: { kind: 'in' | 'out', distanceMeters, radiusMeters, checkedAt }
+  // `kind: 'out'` is also used when the server-side geofence rejects the
+  // marking attempt (distance comes from the server response in that case).
+  const [geoCheck, setGeoCheck] = useState(null);
+  const [geoChecking, setGeoChecking] = useState(false);
 
   const subjectMap = useMemo(() => {
     const m = new Map();
     subjects.forEach((s) => m.set(s.id, s));
     return m;
   }, [subjects]);
+
+  const selectedSessionObj = useMemo(
+    () => sessions.find((s) => s.id === selectedSession) || null,
+    [sessions, selectedSession],
+  );
+  const sessionNeedsGeo = Boolean(
+    selectedSessionObj
+      && selectedSessionObj.campusLat != null
+      && selectedSessionObj.campusLng != null,
+  );
 
   const loadSessions = useCallback(async () => {
     try {
@@ -57,6 +111,48 @@ function StudentView({ user }) {
       setError(extractError(err, 'Failed to load attendance history'));
     }
   }, [user.id]);
+
+  // Run a client-side geofence check for the currently selected session
+  // so the student sees a prominent in/out-of-campus banner before they
+  // even attempt to mark attendance. The server still re-verifies on
+  // /attendance/mark — this is purely a visibility layer.
+  const runGeoCheck = useCallback(async () => {
+    if (!selectedSessionObj || !sessionNeedsGeo) {
+      setGeoCheck(null);
+      return;
+    }
+    setGeoChecking(true);
+    setError('');
+    try {
+      const pos = await getCurrentPosition();
+      const distance = haversineDistanceMeters(
+        pos.lat, pos.lng,
+        selectedSessionObj.campusLat, selectedSessionObj.campusLng,
+      );
+      const radius = selectedSessionObj.radiusMeters || 100;
+      const inside = distance != null && distance <= radius;
+      setGeoCheck({
+        kind: inside ? 'in' : 'out',
+        distanceMeters: distance,
+        radiusMeters: radius,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setError(err.message || 'Could not read your location.');
+    } finally {
+      setGeoChecking(false);
+    }
+  }, [selectedSessionObj, sessionNeedsGeo]);
+
+  // When the student picks a new session that requires geo, immediately
+  // run a check so they know where they stand before scanning.
+  useEffect(() => {
+    if (sessionNeedsGeo) {
+      runGeoCheck();
+    } else {
+      setGeoCheck(null);
+    }
+  }, [selectedSession, sessionNeedsGeo, runGeoCheck]);
 
   useEffect(() => {
     loadSessions();
@@ -83,21 +179,75 @@ function StudentView({ user }) {
       return;
     }
 
+    // Capture the student's location at the moment of marking. Sessions
+    // started with a campus location enforce the radius server-side; the
+    // coords are sent along so every attempt can be verified and logged.
+    let position = null;
+    if (sessionNeedsGeo) {
+      try {
+        position = await getCurrentPosition();
+      } catch (err) {
+        setError(err.message || 'Location is required to mark attendance for this session.');
+        return;
+      }
+    }
+
     try {
       const result = await markAttendance({
         sessionId: selectedSession,
         descriptor,
         livenessPassed,
+        lat: position ? position.lat : undefined,
+        lng: position ? position.lng : undefined,
+        accuracy: position ? position.accuracy : undefined,
       });
       const confPct = (result.match && result.match.confidence != null)
         ? Math.round(result.match.confidence * 100) + '%'
         : 'n/a';
       setMessage('Attendance marked. Match confidence: ' + confPct);
+
+      // Reflect the server's authoritative location verdict on the
+      // banner — the server returns distanceMeters for geo-gated
+      // sessions. Treat inside-radius as "IN CAMPUS".
+      if (sessionNeedsGeo && result.location && result.location.distanceMeters != null) {
+        const inside = result.location.distanceMeters <= (result.location.radiusMeters || (selectedSessionObj && selectedSessionObj.radiusMeters) || 100);
+        setGeoCheck({
+          kind: inside ? 'in' : 'out',
+          distanceMeters: result.location.distanceMeters,
+          radiusMeters: result.location.radiusMeters || (selectedSessionObj && selectedSessionObj.radiusMeters) || null,
+          checkedAt: new Date().toISOString(),
+        });
+      } else if (sessionNeedsGeo && position) {
+        // Fallback: compute client-side if the server didn't echo a distance.
+        const distance = haversineDistanceMeters(
+          position.lat, position.lng,
+          selectedSessionObj.campusLat, selectedSessionObj.campusLng,
+        );
+        const radius = selectedSessionObj.radiusMeters || 100;
+        setGeoCheck({
+          kind: distance != null && distance <= radius ? 'in' : 'out',
+          distanceMeters: distance,
+          radiusMeters: radius,
+          checkedAt: new Date().toISOString(),
+        });
+      }
       await loadHistory();
     } catch (err) {
+      // Server-side geofence rejection: promote the plain error into a
+      // prominent OUT OF CAMPUS banner with the server's distance so the
+      // student cannot miss it.
+      const resp = err && err.response && err.response.data;
+      if (resp && resp.code === 'OUTSIDE_GEOFENCE') {
+        setGeoCheck({
+          kind: 'out',
+          distanceMeters: resp.distanceMeters,
+          radiusMeters: resp.radiusMeters,
+          checkedAt: new Date().toISOString(),
+        });
+      }
       setError(extractError(err, 'Failed to mark attendance'));
     }
-  }, [selectedSession, loadHistory]);
+  }, [selectedSession, sessionNeedsGeo, selectedSessionObj, loadHistory]);
 
   return (
     <>
@@ -114,6 +264,33 @@ function StudentView({ user }) {
             ))}
           </select>
         </label>
+
+        {sessionNeedsGeo && (
+          <p className="muted small">
+            This session verifies your location — you must be within{' '}
+            {selectedSessionObj.radiusMeters || 100} m of the set location for attendance to count.
+          </p>
+        )}
+
+        {sessionNeedsGeo && (
+          <div className="geo-check-row">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={runGeoCheck}
+              disabled={geoChecking}
+            >
+              {geoChecking ? 'Checking location...' : 'Re-check my location'}
+            </button>
+            {geoCheck && (
+              <span className="muted small">
+                Last check: {new Date(geoCheck.checkedAt).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        )}
+
+        {sessionNeedsGeo && <GeoStatusBanner status={geoCheck} />}
 
         {error && <div className="alert error">{error}</div>}
         {message && <div className="alert success">{message}</div>}

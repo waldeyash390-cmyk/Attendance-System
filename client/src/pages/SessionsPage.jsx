@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { listSubjects } from '../api/subjects';
 import { listSessions, createSession, openSession, closeSession, updateSession, deleteSession } from '../api/sessions';
+import { getCurrentPosition, formatCoords } from '../lib/geo';
 
 const EMPTY_FORM = {
   subjectId: '',
@@ -43,6 +44,13 @@ export default function SessionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  // Geofence: captured once per session via browser geolocation. Stored on
+  // the created session record only — not a global config.
+  const [campus, setCampus] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [geoError, setGeoError] = useState(null);
+  const [radiusMeters, setRadiusMeters] = useState('100');
 
   const [busyId, setBusyId] = useState(null);
 
@@ -86,6 +94,20 @@ export default function SessionsPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  async function handleUseCurrentLocation() {
+    setGeoError(null);
+    setLocating(true);
+    try {
+      const pos = await getCurrentPosition();
+      setCampus(pos);
+    } catch (err) {
+      setCampus(null);
+      setGeoError(err.message || 'Failed to get your location');
+    } finally {
+      setLocating(false);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError(null);
@@ -101,12 +123,22 @@ export default function SessionsPage() {
     }
     if (end <= start) return setFormError('End time must be after start time');
 
+    if (!campus) return setFormError('Capture your location before starting the session');
+
+    const radius = Number(radiusMeters);
+    if (!Number.isFinite(radius) || radius <= 0) {
+      return setFormError('Radius must be a positive number of meters');
+    }
+
     const payload = {
       subjectId: form.subjectId,
       title: form.title.trim() || undefined,
       startAt: start.toISOString(),
       endAt: end.toISOString(),
       location: form.location.trim() || undefined,
+      campusLat: campus.lat,
+      campusLng: campus.lng,
+      radiusMeters: Math.round(radius),
     };
 
     setSubmitting(true);
@@ -114,6 +146,8 @@ export default function SessionsPage() {
       const created = await createSession(payload);
       setSessions((prev) => [created, ...prev.filter((x) => x.id !== created.id)]);
       setForm(EMPTY_FORM);
+      setCampus(null);
+      setRadiusMeters('100');
       const subj = subjectMap.get(created.subjectId);
       setSuccess(`Session created for ${subj ? subj.code : 'subject'}`);
     } catch (err) {
@@ -274,12 +308,45 @@ export default function SessionsPage() {
                 />
               </label>
 
+              <div className="form-row-full">
+                <span><strong>Set location</strong></span>
+                <p className="muted small" style={{ marginTop: 4 }}>
+                  Students must be within this radius of your current position to mark attendance.
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleUseCurrentLocation}
+                  disabled={locating}
+                >
+                  {locating ? 'Getting location...' : 'Use My Current Location'}
+                </button>
+                {campus && (
+                  <p style={{ margin: '8px 0 0' }}>
+                    Captured: <strong>{formatCoords(campus.lat, campus.lng)}</strong>
+                    {' '}(accuracy ±{Math.round(campus.accuracy)} m)
+                  </p>
+                )}
+                {geoError && <div className="alert error" style={{ marginTop: 8 }}>{geoError}</div>}
+                <label style={{ display: 'block', marginTop: 12 }}>
+                  <span>Radius (meters)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={radiusMeters}
+                    onChange={(e) => setRadiusMeters(e.target.value)}
+                    style={{ maxWidth: 160 }}
+                  />
+                </label>
+              </div>
+
               {formError && <div className="alert error form-row-full">{formError}</div>}
               {success && <div className="alert success form-row-full">{success}</div>}
 
               <div className="form-row-full form-actions">
-                <button type="submit" disabled={submitting}>
-                  {submitting ? 'Creating...' : 'Create session'}
+                <button type="submit" disabled={submitting || locating || !campus} title={!campus ? 'Capture your location first' : ''}>
+                  {submitting ? 'Starting...' : 'Start Session'}
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
+const { haversineDistanceMeters } = require('../utils/geo');
 
 const router = express.Router();
 
@@ -65,13 +66,66 @@ function publicAttendance(row) {
 async function loadSession(id) {
   const result = await query(
     `SELECT id, subject_id, teacher_id, title, start_at, end_at,
-            location, is_open, opens_at, closes_at, created_at, updated_at
+            location, is_open, opens_at, closes_at,
+            campus_lat, campus_lng, radius_meters,
+            created_at, updated_at
        FROM sessions
       WHERE id = $1
       LIMIT 1`,
     [id],
   );
   return result.rows[0] || null;
+}
+
+function sessionGeofence(session) {
+  if (session.campus_lat === null || session.campus_lat === undefined) return null;
+  if (session.campus_lng === null || session.campus_lng === undefined) return null;
+  const radius = Number(session.radius_meters);
+  if (!Number.isFinite(radius) || radius <= 0) return null;
+  return {
+    campusLat: Number(session.campus_lat),
+    campusLng: Number(session.campus_lng),
+    radiusMeters: radius,
+  };
+}
+
+function parseStudentCoords(body) {
+  const lat = Number(body.lat);
+  const lng = Number(body.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  let accuracy = null;
+  if (body.accuracy !== undefined && body.accuracy !== null && body.accuracy !== '') {
+    const a = Number(body.accuracy);
+    if (Number.isFinite(a) && a >= 0) accuracy = a;
+  }
+  return { lat, lng, accuracy };
+}
+
+async function logAttempt({ sessionId, studentId, status, lat, lng, distanceMeters, accuracyMeters }) {
+  await query(
+    `INSERT INTO attendance_attempts
+       (session_id, student_id, status, lat, lng, distance_meters, accuracy_meters)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [sessionId, studentId, status, lat, lng, distanceMeters, accuracyMeters],
+  );
+}
+
+function publicAttempt(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    studentId: row.student_id,
+    studentName: row.full_name || null,
+    rollNumber: row.roll_number || null,
+    status: row.status,
+    lat: row.lat === null ? null : Number(row.lat),
+    lng: row.lng === null ? null : Number(row.lng),
+    distance: row.distance_meters === null ? null : Number(row.distance_meters),
+    accuracy: row.accuracy_meters === null ? null : Number(row.accuracy_meters),
+    timestamp: row.created_at,
+  };
 }
 
 function isSessionOpen(session, now = new Date()) {
@@ -220,6 +274,45 @@ router.post('/mark', requireAuth, async (req, res, next) => {
       return bad(res, 'Session is not open for attendance', 409);
     }
 
+    // Geofence gate: if this session was started with a location + radius,
+    // the student must be inside the radius for the marking to count.
+    // Rejected attempts are logged but never create an attendance record,
+    // so they stay neutral in analytics (same as excused).
+    const geo = sessionGeofence(session);
+    let studentCoords = null;
+    let distanceMeters = null;
+    if (geo) {
+      studentCoords = parseStudentCoords(req.body || {});
+      if (!studentCoords) {
+        return bad(res, 'Location is required to mark attendance for this session. Please enable location access and try again.');
+      }
+      distanceMeters = haversineDistanceMeters(
+        studentCoords.lat, studentCoords.lng, geo.campusLat, geo.campusLng,
+      );
+      if (distanceMeters === null) {
+        return bad(res, 'Invalid location coordinates');
+      }
+      distanceMeters = Math.round(distanceMeters);
+      if (distanceMeters > geo.radiusMeters) {
+        await logAttempt({
+          sessionId,
+          studentId: req.user.id,
+          status: 'rejected_location',
+          lat: studentCoords.lat,
+          lng: studentCoords.lng,
+          distanceMeters,
+          accuracyMeters: studentCoords.accuracy,
+        });
+        return res.status(403).json({
+          error: `You are outside the session area (${distanceMeters} meters away) — attendance not counted.`,
+          code: 'OUTSIDE_GEOFENCE',
+          distanceMeters,
+          radiusMeters: geo.radiusMeters,
+          status: 'rejected_location',
+        });
+      }
+    }
+
     const enrolled = await query(
       `SELECT id, user_id, descriptor
          FROM face_descriptors
@@ -299,6 +392,18 @@ router.post('/mark', requireAuth, async (req, res, next) => {
       throw err;
     }
 
+    if (geo && studentCoords) {
+      await logAttempt({
+        sessionId,
+        studentId: userRow.id,
+        status: 'accepted',
+        lat: studentCoords.lat,
+        lng: studentCoords.lng,
+        distanceMeters,
+        accuracyMeters: studentCoords.accuracy,
+      });
+    }
+
     res.status(201).json({
       attendance: publicAttendance(attendanceRow),
       match: {
@@ -311,6 +416,9 @@ router.post('/mark', requireAuth, async (req, res, next) => {
         confidence: Number(confidence.toFixed(4)),
       },
       session: { id: session.id, title: session.title, isOpen: session.is_open },
+      location: geo
+        ? { distanceMeters, radiusMeters: geo.radiusMeters }
+        : null,
     });
   } catch (err) {
     next(err);
@@ -357,6 +465,45 @@ router.get('/session/:sessionId', requireAuth, async (req, res, next) => {
     };
 
     res.json({ sessionId: req.params.sessionId, summary, records });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Live attempt log for one session (teacher/admin who owns the session).
+// Shows every geofence-checked marking attempt: accepted and rejected.
+router.get('/session/:sessionId/attempts', requireAuth, requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const session = await loadSession(req.params.sessionId);
+    if (!session) return bad(res, 'Session not found', 404);
+
+    if (req.user.role !== 'admin' && session.teacher_id !== req.user.id) {
+      return bad(res, 'Only the assigned teacher or an admin can view session attempts', 403);
+    }
+
+    const result = await query(
+      `SELECT at.id, at.session_id, at.student_id, at.status,
+              at.lat, at.lng, at.distance_meters, at.accuracy_meters, at.created_at,
+              u.full_name, u.roll_number
+         FROM attendance_attempts at
+         JOIN users u ON u.id = at.student_id
+        WHERE at.session_id = $1
+        ORDER BY at.created_at DESC
+        LIMIT 200`,
+      [req.params.sessionId],
+    );
+
+    const rejected = result.rows.filter((r) => r.status === 'rejected_location').length;
+
+    res.json({
+      sessionId: req.params.sessionId,
+      summary: {
+        total: result.rows.length,
+        accepted: result.rows.length - rejected,
+        rejected: rejected,
+      },
+      attempts: result.rows.map(publicAttempt),
+    });
   } catch (err) {
     next(err);
   }

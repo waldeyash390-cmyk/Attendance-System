@@ -4,13 +4,21 @@ import { useAuth } from '../auth/AuthContext';
 import { getSession } from '../api/sessions';
 import {
   getSessionAttendance,
+  getSessionAttempts,
   markManual,
   updateAttendance,
 } from '../api/attendance';
 import { listUsers } from '../api/users';
 import { api, extractError } from '../api/client';
+import { formatCoords } from '../lib/geo';
 
 const POLL_INTERVAL_MS = 4000;
+
+// Threshold for flagging a student as "Suspicious" on the Location checks
+// table based on the existing rejected_location attempts for this session.
+// This is purely a presentation/visibility layer — it does not alter how
+// attempts are logged or how analytics are computed server-side.
+const SUSPICIOUS_REJECTED_THRESHOLD = 10;
 
 const STATUS_OPTIONS = [
   { value: 'present', label: 'Present' },
@@ -38,6 +46,7 @@ export default function LiveDashboardPage() {
 
   const [session, setSession] = useState(null);
   const [attendance, setAttendance] = useState(null);
+  const [attempts, setAttempts] = useState(null);
   const [students, setStudents] = useState([]);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -78,12 +87,22 @@ export default function LiveDashboardPage() {
     }
   }, [sessionId]);
 
+  const loadAttempts = useCallback(async () => {
+    try {
+      const data = await getSessionAttempts(sessionId);
+      setAttempts(data);
+    } catch (err) {
+      // Non-fatal: the attempt log is a live extra, don't break the page.
+      setAttempts(null);
+    }
+  }, [sessionId]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadSession(), loadStudents(), loadAttendance()]).finally(() =>
+    Promise.all([loadSession(), loadStudents(), loadAttendance(), loadAttempts()]).finally(() =>
       setLoading(false),
     );
-  }, [loadSession, loadStudents, loadAttendance]);
+  }, [loadSession, loadStudents, loadAttendance, loadAttempts]);
 
   useEffect(() => {
     function startPolling() {
@@ -91,6 +110,7 @@ export default function LiveDashboardPage() {
       pollRef.current = setInterval(() => {
         if (!paused) {
           loadAttendance();
+          loadAttempts();
         }
       }, POLL_INTERVAL_MS);
       tickRef.current = setInterval(() => {
@@ -103,7 +123,7 @@ export default function LiveDashboardPage() {
     }
     startPolling();
     return stopPolling;
-  }, [paused, loadAttendance]);
+  }, [paused, loadAttendance, loadAttempts]);
 
   const summary = attendance ? attendance.summary : null;
   const recordsByStudent = useMemo(() => {
@@ -128,6 +148,38 @@ export default function LiveDashboardPage() {
   const sinceSeconds = lastUpdate
     ? Math.max(0, Math.floor((Date.now() - lastUpdate.getTime()) / 1000))
     : null;
+
+  // Derived from the existing attempts log: how many rejected_location
+  // attempts each student has on this session. Threshold ≥
+  // SUSPICIOUS_REJECTED_THRESHOLD marks them as suspicious for the UI.
+  const rejectedCounts = useMemo(() => {
+    const m = new Map();
+    if (!attempts || !Array.isArray(attempts.attempts)) return m;
+    for (const a of attempts.attempts) {
+      if (a.status !== 'rejected_location') continue;
+      const id = a.studentId;
+      m.set(id, (m.get(id) || 0) + 1);
+    }
+    return m;
+  }, [attempts]);
+
+  const suspiciousStudents = useMemo(() => {
+    if (!attempts || !Array.isArray(attempts.attempts)) return [];
+    const byId = new Map();
+    for (const a of attempts.attempts) {
+      if (a.status !== 'rejected_location') continue;
+      const count = rejectedCounts.get(a.studentId) || 0;
+      if (count < SUSPICIOUS_REJECTED_THRESHOLD) continue;
+      if (byId.has(a.studentId)) continue;
+      byId.set(a.studentId, {
+        studentId: a.studentId,
+        studentName: a.studentName,
+        rollNumber: a.rollNumber,
+        count,
+      });
+    }
+    return Array.from(byId.values()).sort((a, b) => b.count - a.count);
+  }, [attempts, rejectedCounts]);
 
   async function handleSetStatus(studentId, status) {
     setBusyStudentId(studentId);
@@ -194,6 +246,12 @@ export default function LiveDashboardPage() {
             {' · '}
             {session.location || 'No location'}
           </p>
+          {session.campusLat != null && session.campusLng != null && (
+            <p className="muted small">
+              Session location: <strong>{formatCoords(session.campusLat, session.campusLng)}</strong>
+              {' · '}Radius: <strong>{session.radiusMeters || 100} m</strong>
+            </p>
+          )}
         </div>
         <div className="live-controls">
           {paused ? (
@@ -347,6 +405,90 @@ export default function LiveDashboardPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2>Location checks ({attempts ? attempts.summary.total : 0})</h2>
+          <span className="muted small">
+            {attempts ? `${attempts.summary.accepted} accepted · ${attempts.summary.rejected} rejected` : 'Loading...'}
+          </span>
+        </div>
+        {suspiciousStudents.length > 0 && (
+          <div className="geo-summary-line" role="alert">
+            <span className="geo-summary-icon" aria-hidden="true">⚠</span>
+            <span>
+              {suspiciousStudents.length === 1
+                ? '1 student has 10+ failed location attempts on this session:'
+                : `${suspiciousStudents.length} students have 10+ failed location attempts on this session:`}
+            </span>
+            <ul>
+              {suspiciousStudents.map((s) => (
+                <li key={s.studentId}>
+                  {s.studentName}{' '}
+                  <span className="muted">
+                    ({s.count} attempts{s.rollNumber ? ` · ${s.rollNumber}` : ''})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {!attempts || attempts.attempts.length === 0 ? (
+          <p className="muted">No location-checked marking attempts yet.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Status</th>
+                  <th className="num">Distance</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attempts.attempts.map((a) => {
+                  const rejected = a.status === 'rejected_location';
+                  const rejectedCount = rejected ? (rejectedCounts.get(a.studentId) || 0) : 0;
+                  const suspicious = rejectedCount >= SUSPICIOUS_REJECTED_THRESHOLD;
+                  const rowCls = suspicious
+                    ? 'attempt-rejected attempt-suspicious'
+                    : (rejected ? 'attempt-rejected' : '');
+                  return (
+                    <tr key={a.id} className={rowCls}>
+                      <td>
+                        <strong>{a.studentName}</strong>
+                        {a.rollNumber && <div className="muted small">{a.rollNumber}</div>}
+                      </td>
+                      <td>
+                        {suspicious ? (
+                          <span
+                            className="badge badge-suspicious"
+                            title={`${rejectedCount} rejected attempts on this session`}
+                          >
+                            ⚠ Repeated attempts ({rejectedCount})
+                          </span>
+                        ) : (
+                          <span className={`badge ${rejected ? 'badge-absent' : 'badge-present'}`}>
+                            {rejected ? 'Rejected (outside area)' : 'Accepted'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="num">
+                        {a.distance == null ? '-' : `${Math.round(a.distance)} m`}
+                        {a.accuracy != null && (
+                          <div className="muted small">±{Math.round(a.accuracy)} m accuracy</div>
+                        )}
+                      </td>
+                      <td>{formatDateTime(a.timestamp)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <p className="muted small">

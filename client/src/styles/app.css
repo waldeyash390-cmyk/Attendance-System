@@ -406,6 +406,10 @@ button:disabled,
   flex-wrap: wrap;
 }
 
+/* Rejected geofence attempts on the live dashboard (red/amber highlight) */
+tr.attempt-rejected { background: var(--error-soft); }
+tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
+
 .live-pulse {
   display: inline-block;
   width: 8px;
@@ -588,7 +592,118 @@ button:disabled,
   margin: 0;
 }
 
-/* ---------- Analytics ---------- */
+/* ---------- Geofence status banner (student) ---------- */
+
+.geo-check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Big, unmistakable in/out-of-campus banner shown to students. Uses
+   the same green/red palette as the existing badge system but is
+   sized and styled to be impossible to miss — this is the primary
+   feedback for the geofence gate, not a small inline error. */
+.geo-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  margin: 6px 0 14px;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  box-shadow: var(--shadow-sm);
+}
+.geo-banner-icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+.geo-banner-body { min-width: 0; }
+.geo-banner-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.geo-banner-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+
+.geo-banner-in {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: #b8e0c6;
+}
+.geo-banner-in .geo-banner-icon { background: var(--success); }
+
+.geo-banner-out {
+  background: var(--error-soft);
+  color: var(--error);
+  border-color: #f5c8c4;
+}
+.geo-banner-out .geo-banner-icon { background: var(--error); }
+
+@media (max-width: 640px) {
+  .geo-banner { padding: 14px 14px; gap: 12px; }
+  .geo-banner-icon { width: 40px; height: 40px; font-size: 22px; }
+  .geo-banner-title { font-size: 16px; }
+}
+
+/* Suspicious repeated rejected-location flagging (teacher live dashboard) */
+.badge-suspicious {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid #f0d68b;
+}
+tr.attempt-suspicious {
+  background: var(--warning-soft);
+}
+tr.attempt-suspicious:nth-child(even) {
+  background: #fde9b8;
+}
+
+.geo-summary-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--warning-soft);
+  border: 1px solid #f0d68b;
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 500;
+}
+.geo-summary-line .geo-summary-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.geo-summary-line ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.geo-summary-line li { color: var(--text); font-weight: 500; }
+.geo-summary-line li .muted { color: var(--muted); font-weight: 400; margin-left: 4px; }
 
 .analytics-summary {
   display: grid;

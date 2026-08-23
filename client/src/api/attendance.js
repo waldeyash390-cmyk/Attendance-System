@@ -1,11 +1,19 @@
 import { api, extractError } from './client';
 
-export async function markAttendance({ sessionId, descriptor, livenessPassed }) {
+export async function markAttendance({ sessionId, descriptor, livenessPassed, lat, lng, accuracy }) {
   const { data } = await api.post('/attendance/mark', {
     sessionId,
     descriptor,
     livenessPassed: livenessPassed === true,
+    ...(Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))
+      ? { lat: Number(lat), lng: Number(lng), accuracy: Number(accuracy) }
+      : {}),
   });
+  return data;
+}
+
+export async function getSessionAttempts(sessionId) {
+  const { data } = await api.get(`/attendance/session/${sessionId}/attempts`);
   return data;
 }
 
