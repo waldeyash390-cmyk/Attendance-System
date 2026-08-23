@@ -296,6 +296,7 @@ button:disabled,
 }
 .alert.error { background: var(--error-soft); color: var(--error); border-color: #f5c8c4; }
 .alert.success { background: var(--success-soft); color: var(--success); border-color: #c9ebd6; }
+.alert.warning { background: var(--warning-soft); color: var(--warning); border-color: #f0d68b; }
 
 /* ---------- Tables ---------- */
 
@@ -618,4 +619,112 @@ button:disabled,
 .pct-bad  { color: var(--error); font-weight: 700; }
 
 .row-defaulter td { background: var(--error-soft); }
+
+/* ---------- Student dashboard ---------- */
+
+.attendance-summary-card { padding: 20px 22px; }
+
+.attendance-percentage {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 4px 0 14px;
+}
+.attendance-percentage-number {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.attendance-percentage-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+.attendance-percentage-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.att-good    { color: var(--success); }
+.att-warn    { color: var(--warning); }
+.att-bad     { color: var(--error);   }
+.att-neutral { color: var(--muted);   }
+
+.data-table td.num,
+.data-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.subject-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.subject-cell .badge { flex-shrink: 0; }
+
+.record-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.record-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.record-list-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.record-list-title {
+  font-weight: 500;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .attendance-summary-card { padding: 16px; }
+  .attendance-percentage-number { font-size: 36px; }
+}
 .row-defaulter:hover td { background: #f8d8d4; }
+
+/* ---------- Teacher dashboard ---------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+}
+.empty-state p { margin: 0; color: var(--muted); }
+
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.quick-links .btn-primary,
+.quick-links .btn-secondary {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .quick-links .btn-secondary { flex: 1 1 auto; }
+}

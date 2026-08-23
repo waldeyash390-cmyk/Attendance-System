@@ -1,21 +1,49 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import FaceCapture from '../components/FaceCapture';
 import { markAttendance, getSessionAttendance, getStudentAttendance } from '../api/attendance';
 import { lookupStudent } from '../api/auth';
+import { listSubjects } from '../api/subjects';
 import { api, extractError } from '../api/client';
+
+function formatShortDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: 'short', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function sessionLabel(subject, session) {
+  const subjectPart = subject ? `[${subject.code}] ` : '';
+  const titlePart = session.title || (subject ? subject.name : 'Session');
+  return `${subjectPart}${titlePart} - ${formatShortDateTime(session.startAt)}`;
+}
 
 function StudentView({ user }) {
   const [sessions, setSessions] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [selectedSession, setSelectedSession] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [history, setHistory] = useState(null);
 
+  const subjectMap = useMemo(() => {
+    const m = new Map();
+    subjects.forEach((s) => m.set(s.id, s));
+    return m;
+  }, [subjects]);
+
   const loadSessions = useCallback(async () => {
     try {
-      const { data } = await api.get('/sessions', { params: { openOnly: true } });
+      const [{ data }, subjectList] = await Promise.all([
+        api.get('/sessions', { params: { openOnly: true } }),
+        listSubjects(),
+      ]);
       setSessions(data.sessions || []);
+      setSubjects(subjectList);
     } catch (err) {
       setError(extractError(err, 'Failed to load sessions'));
     }
@@ -81,7 +109,7 @@ function StudentView({ user }) {
             <option value="">Select a session...</option>
             {sessions.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title || s.subjectId} - {new Date(s.startAt).toLocaleString()}
+                {sessionLabel(subjectMap.get(s.subjectId), s)}
               </option>
             ))}
           </select>
@@ -217,14 +245,25 @@ function ManualMark({ selectedSession, onMarked }) {
 
 function TeacherView() {
   const [sessions, setSessions] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [selectedSession, setSelectedSession] = useState('');
   const [attendance, setAttendance] = useState(null);
   const [error, setError] = useState('');
 
+  const subjectMap = useMemo(() => {
+    const m = new Map();
+    subjects.forEach((s) => m.set(s.id, s));
+    return m;
+  }, [subjects]);
+
   const loadSessions = useCallback(async () => {
     try {
-      const { data } = await api.get('/sessions');
+      const [{ data }, subjectList] = await Promise.all([
+        api.get('/sessions'),
+        listSubjects(),
+      ]);
       setSessions(data.sessions || []);
+      setSubjects(subjectList);
     } catch (err) {
       setError(extractError(err, 'Failed to load sessions'));
     }
@@ -259,7 +298,7 @@ function TeacherView() {
               <option value="">Select a session...</option>
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.title || s.subjectId} - {new Date(s.startAt).toLocaleString()} ({s.isOpen ? 'OPEN' : 'CLOSED'})
+                  {sessionLabel(subjectMap.get(s.subjectId), s)} ({s.isOpen ? 'OPEN' : 'CLOSED'})
                 </option>
               ))}
             </select>

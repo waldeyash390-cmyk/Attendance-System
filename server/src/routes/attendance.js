@@ -394,13 +394,25 @@ router.get('/student/:studentId', requireAuth, async (req, res, next) => {
     );
 
     const totalSessions = await query(
-      `SELECT COUNT(*)::int AS n FROM sessions
-        WHERE end_at < NOW()`,
+      `SELECT COUNT(DISTINCT s.id)::int AS n
+         FROM sessions s
+         JOIN attendance a ON a.session_id = s.id
+        WHERE a.student_id = $1
+          AND s.end_at < NOW()`,
+      [targetStudentId],
     );
     const total = totalSessions.rows[0].n;
 
-    const presentRows = attended.rows.filter((r) => r.status === 'present' || r.status === 'late').length;
-    const percentage = total > 0 ? Math.round((presentRows / total) * 10000) / 100 : 0;
+    const seenSessions = new Set();
+    let presentRows = 0;
+    for (const row of attended.rows) {
+      if (seenSessions.has(row.session_id)) continue;
+      seenSessions.add(row.session_id);
+      if (row.status === 'present' || row.status === 'late') presentRows += 1;
+    }
+
+    let percentage = total > 0 ? Math.round((presentRows / total) * 10000) / 100 : 0;
+    if (percentage > 100) percentage = 100;
 
     const history = attended.rows.map((row) => ({
       id: row.id,
