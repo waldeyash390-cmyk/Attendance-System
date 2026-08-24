@@ -31,8 +31,7 @@ export async function unlockStudentProfile(userId) {
 
 // ---- Validation helpers shared by the Profile page and the inline panel ----
 
-export const PHOTO_MIN_BYTES = 2 * 1024 * 1024;
-export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 
 export function isValidPhone(raw) {
@@ -60,10 +59,6 @@ export function readImageFile(file) {
     }
     if (file.size > PHOTO_MAX_BYTES) {
       reject(new Error(`Photo must be at most ${PHOTO_MAX_BYTES / (1024 * 1024)}MB`));
-      return;
-    }
-    if (file.size < PHOTO_MIN_BYTES) {
-      reject(new Error(`Photo must be at least ${PHOTO_MIN_BYTES / (1024 * 1024)}MB`));
       return;
     }
     const reader = new FileReader();

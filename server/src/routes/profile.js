@@ -10,8 +10,7 @@ const router = express.Router();
 // Photo storage location. Files land on disk under server/uploads/ and are
 // served back to the browser as <img src="/api/uploads/">.
 const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads');
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
-const MIN_PHOTO_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -83,7 +82,7 @@ function normalizePhone(raw) {
 
 // Parse a data-URL or a raw base64 string and write it to disk. Returns the
 // public URL the SPA should store on the user record. Rejects anything that
-// isn't an image MIME in the allow-list, anything outside the size window,
+// isn't an image MIME in the allow-list, anything over the size limit,
 // and anything that can't be decoded as base64.
 function persistProfilePhoto({ data, ownerId }) {
   let mime = null;
@@ -115,9 +114,6 @@ function persistProfilePhoto({ data, ownerId }) {
   }
   if (!buf || buf.length === 0) {
     return { error: 'photo is empty' };
-  }
-  if (buf.length < MIN_PHOTO_BYTES) {
-    return { error: `photo must be at least ${MIN_PHOTO_BYTES / (1024 * 1024)}MB` };
   }
   if (buf.length > MAX_PHOTO_BYTES) {
     return { error: `photo must be at most ${MAX_PHOTO_BYTES / (1024 * 1024)}MB` };
