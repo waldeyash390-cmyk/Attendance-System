@@ -1126,8 +1126,25 @@ tr.attempt-suspicious:nth-child(even) {
   gap: 8px;
 }
 .field-with-action > input { flex: 1 1 auto; min-width: 0; }
-.btn-call { text-decoration: none; padding: 6px 12px; font-size: 12px; }
-.btn-call:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-call {
+  text-decoration: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: #16a34a;
+  color: #fff;
+  border: 1px solid #16a34a;
+}
+.btn-call:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+.btn-call:disabled {
+  background: var(--secondary);
+  color: var(--muted);
+  border-color: var(--border);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 
 /* Modal overlay used when the page can't accommodate an inline expanded row. */
 .profile-modal-backdrop {
