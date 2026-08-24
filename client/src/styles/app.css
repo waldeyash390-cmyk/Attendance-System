@@ -3,6 +3,7 @@
   --surface: #ffffff;
   --surface-2: #fafbfc;
   --border: #e3e6ec;
+  --border-strong: #c7ccd6;
   --text: #1f2430;
   --muted: #6b7280;
   --primary: #2f5bff;
@@ -20,7 +21,54 @@
   --shadow: 0 4px 14px rgba(20, 24, 40, 0.06);
   --radius: 10px;
   --radius-sm: 6px;
+
+  /* Color-scheme hint tells the browser to render native form controls
+     and scrollbars with the matching palette, avoiding a flash of light
+     inputs/widgets while dark mode is active. */
+  color-scheme: light;
 }
+
+/* Dark theme overrides — applied via data-theme="dark" on <html>. Variables
+   are mirrored from :root and tuned for proper contrast instead of a
+   naive inversion. */
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --surface-2: #20242f;
+  --border: #2a2f3d;
+  --border-strong: #3a4052;
+  --text: #e6e8ee;
+  --muted: #9aa1b1;
+  --primary: #6c8aff;
+  --primary-hover: #8aa3ff;
+  --primary-soft: #1f2a4d;
+  --secondary: #262b38;
+  --secondary-hover: #2f3544;
+  --success: #4ade80;
+  --success-soft: #14321f;
+  --error: #f87171;
+  --error-soft: #3a1717;
+  --warning: #fbbf24;
+  --warning-soft: #3a2a0a;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+/* Dark-mode overrides for hard-coded light borders used on alert /
+   banner / badge surfaces. Light pastels look out of place against
+   dark-soft backgrounds, so we swap them for tinted versions of the
+   dark status colors. */
+[data-theme="dark"] .alert.error    { border-color: #5a2424; }
+[data-theme="dark"] .alert.success  { border-color: #1f4a2e; }
+[data-theme="dark"] .alert.warning  { border-color: #5a4213; }
+[data-theme="dark"] .geo-banner-in  { border-color: #1f4a2e; }
+[data-theme="dark"] .geo-banner-out { border-color: #5a2424; }
+[data-theme="dark"] .badge-suspicious { border-color: #5a4213; }
+[data-theme="dark"] .geo-summary-line  { border-color: #5a4213; }
+[data-theme="dark"] .liveness-hint     { border-color: #5a4213; }
+[data-theme="dark"] tr.attempt-suspicious:nth-child(even) { background: #3a2a0a; }
+[data-theme="dark"] .row-defaulter:hover td { background: #5a2424; }
 
 * { box-sizing: border-box; }
 
@@ -34,6 +82,7 @@ body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.18s, color 0.18s;
 }
 
 h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em; }
@@ -59,6 +108,10 @@ a:hover { text-decoration: underline; }
   background: linear-gradient(180deg, #f7f8fc 0%, #eef1f8 100%);
 }
 
+[data-theme="dark"] .auth-page {
+  background: linear-gradient(180deg, #0f1117 0%, #181b24 100%);
+}
+
 .auth-card {
   width: 100%;
   max-width: 420px;
@@ -81,7 +134,7 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 14px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -192,6 +245,18 @@ a:hover { text-decoration: underline; }
 .user-menu-item:hover .user-menu-icon { color: var(--error); }
 .user-menu-icon { color: var(--muted); flex: 0 0 auto; }
 
+/* Thin horizontal rule inside the vertical dropdown menu, used to
+   visually group the theme toggle away from destructive actions like
+   Sign out. Mirrors the look of .nav-divider in spirit but is shorter
+   and uses a subtle border that works on both themes. */
+.user-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+  border: 0;
+  padding: 0;
+}
+
 .app-main {
   flex: 1;
   padding: 28px 24px 110px;
@@ -287,7 +352,7 @@ a:hover { text-decoration: underline; }
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 20px;
   box-shadow: var(--shadow-sm);
@@ -332,7 +397,7 @@ a:hover { text-decoration: underline; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 14px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -384,7 +449,7 @@ button:disabled,
 }
 .btn-secondary:hover:not(:disabled) {
   background: var(--secondary);
-  border-color: #d5dae3;
+  border-color: var(--border-strong);
 }
 
 /* ---------- Alerts ---------- */
@@ -400,12 +465,44 @@ button:disabled,
 .alert.success { background: var(--success-soft); color: var(--success); border-color: #c9ebd6; }
 .alert.warning { background: var(--warning-soft); color: var(--warning); border-color: #f0d68b; }
 
+/* "Found student" result block on the Attendance page manual override.
+   Used to be an inline flex row that overflowed on narrow phones; now
+   it's a flex row that wraps the action button to a new line below
+   the student info on small screens. */
+.found-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.found-result-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.found-result > button {
+  flex: 0 0 auto;
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .found-result {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .found-result > button {
+    width: 100%;
+  }
+}
+
 /* ---------- Tables ---------- */
 
 .table-wrap { overflow-x: auto; }
 
 .data-table {
   width: 100%;
+  min-width: 560px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -470,20 +567,22 @@ button:disabled,
 
 .live-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
 .live-summary .stat {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
+  min-width: 0;
 }
 .live-summary .stat .num {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 .live-summary .stat .label {
   font-size: 11px;
@@ -539,7 +638,7 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
 }
 .status-actions button:hover:not(:disabled) {
   background: var(--secondary);
-  border-color: #d5dae3;
+  border-color: var(--border-strong);
 }
 .status-actions button.active {
   background: var(--primary);
@@ -559,7 +658,7 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
 }
 .inline-filter.checkbox { gap: 6px; }
@@ -596,7 +695,7 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -847,9 +946,10 @@ tr.attempt-suspicious:nth-child(even) {
 }
 .analytics-summary .stat {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
+  min-width: 0;
 }
 .analytics-summary .stat .num {
   font-size: 24px;
@@ -929,7 +1029,7 @@ tr.attempt-suspicious:nth-child(even) {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
@@ -1052,14 +1152,14 @@ tr.attempt-suspicious:nth-child(even) {
   gap: 8px;
   align-items: flex-start;
   flex: 1 1 auto;
-  min-width: 200px;
+  min-width: 0;
 }
 .profile-photo-controls .btn-secondary { margin: 0; }
 
 /* Inline teacher panel rendered below a table row. */
 .profile-panel {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 16px;
   margin: 8px 0 12px;
@@ -1073,7 +1173,7 @@ tr.attempt-suspicious:nth-child(even) {
 }
 .profile-panel-layout .profile-photo-block { flex: 0 0 auto; }
 .profile-panel-fields {
-  flex: 1 1 320px;
+  flex: 1 1 240px;
   min-width: 0;
 }
 .profile-panel-actions {

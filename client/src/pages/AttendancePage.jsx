@@ -411,8 +411,8 @@ function ManualMark({ selectedSession, onMarked }) {
       {message && <div className="alert success">{message}</div>}
 
       {found && (
-        <div className="alert success" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span>{found.fullName} ({found.rollNumber || found.email})</span>
+        <div className="alert success found-result">
+          <span className="found-result-label">{found.fullName} ({found.rollNumber || found.email})</span>
           <button type="button" onClick={handleMark} disabled={busy}>Mark present</button>
         </div>
       )}

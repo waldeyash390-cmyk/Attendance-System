@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useTheme } from '../auth/useTheme';
 
 import IconDashboard from './icons/IconDashboard';
 import IconBook from './icons/IconBook';
@@ -11,6 +12,8 @@ import IconCamera from './icons/IconCamera';
 import IconUser from './icons/IconUser';
 import IconLogout from './icons/IconLogout';
 import IconChevron from './icons/IconChevron';
+import IconSun from './icons/IconSun';
+import IconMoon from './icons/IconMoon';
 
 const TEACHER_NAV = [
   { to: '/', label: 'Dashboard', end: true, Icon: IconDashboard },
@@ -29,6 +32,7 @@ const STUDENT_NAV = [
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const nav = user && user.role === 'teacher' ? TEACHER_NAV
@@ -84,6 +88,18 @@ export default function AppLayout() {
           </button>
           {userMenuOpen && (
             <div className="user-menu" role="menu">
+              <button
+                type="button"
+                className="user-menu-item"
+                role="menuitem"
+                onClick={toggleTheme}
+              >
+                {theme === 'dark'
+                  ? <IconSun className="user-menu-icon" />
+                  : <IconMoon className="user-menu-icon" />}
+                <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+              </button>
+              <div className="user-menu-divider" role="separator" />
               <button
                 type="button"
                 className="user-menu-item"
