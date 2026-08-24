@@ -3,22 +3,12 @@ import { Link } from 'react-router-dom';
 import { api, extractError } from '../api/client';
 import { getMyProfile } from '../api/profile';
 import { useAuth } from '../auth/AuthContext';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 function initialsOf(name) {
   if (!name) return '?';
   const parts = String(name).trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0] ? p[0].toUpperCase() : '').join('') || '?';
-}
-
-function ProfileAvatar({ photoUrl, name }) {
-  const src = photoUrl || null;
-  return (
-    <div className="profile-avatar dashboard-avatar" aria-hidden="true">
-      {src
-        ? <img src={src} alt={`${name || 'Student'} photo`} />
-        : <span className="profile-avatar-initials">{initialsOf(name)}</span>}
-    </div>
-  );
 }
 
 function StudentDashboardHeader({ user }) {
@@ -37,7 +27,11 @@ function StudentDashboardHeader({ user }) {
 
   return (
     <div className="dashboard-header">
-      <ProfileAvatar photoUrl={photoUrl} name={user ? user.fullName : ''} />
+      <ProfileAvatar
+        src={photoUrl}
+        name={user ? user.fullName : ''}
+        className="profile-avatar dashboard-avatar"
+      />
       <div className="dashboard-header-text">
         <h1>Welcome back, {user ? user.fullName : 'there'}</h1>
         <p className="muted">

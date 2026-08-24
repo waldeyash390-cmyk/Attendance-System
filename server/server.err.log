@@ -1,0 +1,72 @@
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_e533a2a4-e734-4d87-a947-133b97903a2a_f82bf1389848.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_e533a2a4-e734-4d87-a947-133b97903a2a_f82bf1389848.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_e533a2a4-e734-4d87-a947-133b97903a2a_f82bf1389848.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_e533a2a4-e734-4d87-a947-133b97903a2a_f82bf1389848.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_d7686cdf-5b8f-410e-8661-a6d6c7606712_b6e2a0e9d6a3.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}
+[server error] [Error: ENOENT: no such file or directory, stat 'C:\Users\Admin\attendance-system\server\uploads\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\Admin\\attendance-system\\server\\uploads\\profile_237fc302-18f8-4a15-bfa1-9307c2f2a39e_c330fffec693.png',
+  expose: false,
+  statusCode: 404,
+  status: 404
+}

@@ -9,6 +9,7 @@ import {
   PHOTO_MAX_BYTES,
 } from '../api/profile';
 import { extractError } from '../api/client';
+import ProfileAvatar from './ProfileAvatar';
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -228,11 +229,11 @@ export function StudentProfilePanel({ student, onProfileUpdated }) {
 
       <div className="profile-panel-layout">
         <div className="profile-photo-block">
-          <div className="profile-avatar" aria-hidden="true">
-            {photoSrc
-              ? <img src={photoSrc} alt={`${profile.fullName || 'Student'} photo`} />
-              : <span className="profile-avatar-initials">{initialsOf(profile.fullName)}</span>}
-          </div>
+          <ProfileAvatar
+            src={photoSrc}
+            name={profile.fullName}
+            alt={`${profile.fullName || 'Student'} photo`}
+          />
           {editing && (
             <div className="profile-photo-controls">
               <input

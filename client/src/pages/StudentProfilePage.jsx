@@ -8,6 +8,7 @@ import {
   PHOTO_MAX_BYTES,
 } from '../api/profile';
 import { extractError } from '../api/client';
+import ProfileAvatar from '../components/ProfileAvatar';
 
 function formatDateTime(iso) {
   if (!iso) return '-';
@@ -174,11 +175,11 @@ export default function StudentProfilePage() {
 
       <div className="card profile-card">
         <div className="profile-photo-block">
-          <div className="profile-avatar" aria-hidden="true">
-            {photoSrc
-              ? <img src={photoSrc} alt="Profile photo" />
-              : <span className="profile-avatar-initials">{initialsOf(profile.fullName)}</span>}
-          </div>
+          <ProfileAvatar
+            src={photoSrc}
+            name={profile.fullName}
+            alt="Profile photo"
+          />
           {!isLocked && (
             <div className="profile-photo-controls">
               <input
