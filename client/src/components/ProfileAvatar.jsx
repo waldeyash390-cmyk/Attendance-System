@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -12,17 +12,19 @@ function initialsOf(name) {
 // user record still references it), or errors mid-stream, we silently fall
 // back to an initials chip so the user never sees a broken-image icon.
 //
-// The errored-flag is reset whenever `src` changes: this lets the avatar
-// recover automatically once a new (working) photo URL is assigned — e.g.
-// after a teacher uploads a replacement photo in the profile panel. Without
-// this reset, a previously-failed src would leave the component stuck on
-// the initials chip forever, even when the parent re-renders with a
-// perfectly good new src.
+// Implementation notes:
+//   - We use the current `src` value as the `key` on the underlying <img>.
+//     This forces React to unmount and remount the element whenever the
+//     parent passes a new src, which guarantees a fresh load attempt with
+//     no inherited onError / cached-failure state.
+//   - `errored` is local state that tracks the load failure of the *current*
+//     <img> only. When the parent re-renders with a new src, the new
+//     <img> is a separate element (thanks to key=src) and gets its own
+//     fresh errored=false. This is the most robust pattern for handling
+//     a parent that reassigns src: the previous failure is discarded
+//     along with the previous DOM node.
 export default function ProfileAvatar({ src, name, alt, className }) {
   const [errored, setErrored] = useState(false);
-  useEffect(() => {
-    setErrored(false);
-  }, [src]);
   const showImg = !!src && !errored;
 
   return (
@@ -30,9 +32,11 @@ export default function ProfileAvatar({ src, name, alt, className }) {
       {showImg
         ? (
           <img
+            key={src}
             src={src}
             alt={alt || `${name || 'User'} photo`}
             onError={() => setErrored(true)}
+            onLoad={() => setErrored(false)}
           />
         )
         : <span className="profile-avatar-initials">{initialsOf(name)}</span>}
