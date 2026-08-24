@@ -1,59 +1,58 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
+import IconDashboard from './icons/IconDashboard';
+import IconBook from './icons/IconBook';
+import IconCalendar from './icons/IconCalendar';
+import IconClipboard from './icons/IconClipboard';
+import IconChart from './icons/IconChart';
+import IconCamera from './icons/IconCamera';
+import IconUser from './icons/IconUser';
+import IconLogout from './icons/IconLogout';
+import IconChevron from './icons/IconChevron';
+
 const TEACHER_NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/subjects', label: 'Subjects' },
-  { to: '/sessions', label: 'Sessions' },
-  { to: '/attendance', label: 'Attendance' },
-  { to: '/analytics', label: 'Analytics' },
+  { to: '/', label: 'Dashboard', end: true, Icon: IconDashboard },
+  { to: '/subjects', label: 'Subjects', Icon: IconBook },
+  { to: '/sessions', label: 'Lectures', Icon: IconCalendar },
+  { to: '/attendance', label: 'Attendance', Icon: IconClipboard },
+  { to: '/analytics', label: 'Analytics', Icon: IconChart },
 ];
 
 const STUDENT_NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/face-enroll', label: 'Face Enrollment' },
-  { to: '/attendance', label: 'My Attendance' },
-  { to: '/profile', label: 'My Profile' },
+  { to: '/', label: 'Dashboard', end: true, Icon: IconDashboard },
+  { to: '/face-enroll', label: 'Face Enrollment', Icon: IconCamera },
+  { to: '/attendance', label: 'My Attendance', Icon: IconClipboard },
+  { to: '/profile', label: 'My Profile', Icon: IconUser },
 ];
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const nav = user && user.role === 'teacher' ? TEACHER_NAV
             : user && user.role === 'student' ? STUDENT_NAV
             : [];
 
-  const [navOpen, setNavOpen] = useState(false);
-  const headerRef = useRef(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
 
   function handleLogout() {
-    setNavOpen(false);
+    setUserMenuOpen(false);
     logout();
     navigate('/login', { replace: true });
   }
 
-  // Close the mobile menu whenever the route changes — the nav links
-  // themselves navigate, but we also want it to close after logout/refresh
-  // navigation triggered from elsewhere.
+  // Close the user dropdown on Escape and outside click.
   useEffect(() => {
-    setNavOpen(false);
-  }, [location.pathname]);
-
-  // Close on Escape and on outside click while open. Outside-click is only
-  // wired on small screens where the menu is rendered as an overlay;
-  // on desktop the menu is the inline horizontal nav so there's nothing
-  // to dismiss.
-  useEffect(() => {
-    if (!navOpen) return undefined;
+    if (!userMenuOpen) return undefined;
     function onKey(e) {
-      if (e.key === 'Escape') setNavOpen(false);
+      if (e.key === 'Escape') setUserMenuOpen(false);
     }
     function onClick(e) {
-      if (headerRef.current && !headerRef.current.contains(e.target)) {
-        setNavOpen(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -62,66 +61,68 @@ export default function AppLayout() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onClick);
     };
-  }, [navOpen]);
-
-  const headerCls = 'app-header' + (navOpen ? ' nav-open' : '');
+  }, [userMenuOpen]);
 
   return (
     <div className="app-shell">
-      <header className={headerCls} ref={headerRef}>
-        <div className="brand-row">
-          <div className="brand">Attendance</div>
+      <header className="app-header">
+        <div className="brand">Attendance</div>
+
+        <div className="user-box" ref={userMenuRef}>
           <button
             type="button"
-            className="nav-toggle"
-            aria-label={navOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            aria-expanded={navOpen}
-            aria-controls="primary-nav"
-            onClick={() => setNavOpen((v) => !v)}
+            className="user-trigger"
+            onClick={() => setUserMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
           >
-            <span className="nav-toggle-bars" aria-hidden="true">
-              <span /><span /><span />
+            <span className="user-info">
+              <span className="user-name">{user ? user.fullName : ''}</span>
+              <span className="user-role muted small">{user ? user.role : ''}</span>
             </span>
-            <span className="nav-toggle-label">{navOpen ? 'Close' : 'Menu'}</span>
+            <IconChevron className="user-trigger-chevron" />
           </button>
-        </div>
-
-        <nav
-          id="primary-nav"
-          className="primary-nav"
-          aria-label="Primary"
-        >
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-          <div className="nav-divider" aria-hidden="true" />
-          <button
-            type="button"
-            className="nav-link nav-link-action nav-link-signout"
-            onClick={handleLogout}
-          >
-            Sign out
-          </button>
-        </nav>
-
-        <div className="user-box">
-          <div className="user-info">
-            <div className="user-name">{user ? user.fullName : ''}</div>
-            <div className="user-role muted small">{user ? user.role : ''}</div>
-          </div>
+          {userMenuOpen && (
+            <div className="user-menu" role="menu">
+              <button
+                type="button"
+                className="user-menu-item"
+                role="menuitem"
+                onClick={handleLogout}
+              >
+                <IconLogout className="user-menu-icon" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       <main className="app-main">
         <Outlet />
       </main>
+
+      {nav.length > 0 && (
+        <nav className="bottom-nav" aria-label="Primary">
+          <ul className="bottom-nav-pill">
+            {nav.map(({ to, label, end, Icon }) => (
+              <li key={to}>
+                <NavLink
+                  to={to}
+                  end={end}
+                  className={({ isActive }) =>
+                    'bottom-nav-link' + (isActive ? ' active' : '')
+                  }
+                  aria-label={label}
+                >
+                  <span className="bottom-nav-icon"><Icon /></span>
+                  <span className="bottom-nav-label">{label}</span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }

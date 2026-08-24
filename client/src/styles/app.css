@@ -107,8 +107,8 @@ a:hover { text-decoration: underline; }
 .app-header {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 12px 24px;
+  gap: 12px;
+  padding: 10px 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -116,132 +116,159 @@ a:hover { text-decoration: underline; }
   z-index: 10;
 }
 
-.brand-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
-}
-
 .brand {
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.01em;
   color: var(--text);
-}
-
-/* Hamburger toggle — hidden on desktop, the primary control on mobile. */
-.nav-toggle {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.nav-toggle:hover { background: var(--secondary); }
-.nav-toggle-bars {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 16px;
-  height: 12px;
-}
-.nav-toggle-bars span {
-  display: block;
-  height: 2px;
-  background: var(--text);
-  border-radius: 1px;
-  transition: transform 0.15s, opacity 0.15s;
-}
-/* Animate the bars into an "X" when the menu is open. */
-.app-header.nav-open .nav-toggle-bars span:nth-child(1) {
-  transform: translateY(5px) rotate(45deg);
-}
-.app-header.nav-open .nav-toggle-bars span:nth-child(2) { opacity: 0; }
-.app-header.nav-open .nav-toggle-bars span:nth-child(3) {
-  transform: translateY(-5px) rotate(-45deg);
-}
-
-.primary-nav {
-  display: flex;
-  gap: 4px;
-  flex: 1;
-  flex-wrap: nowrap;
-  min-width: 0;
-}
-
-.nav-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-weight: 500;
-  font-size: 13px;
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-.nav-link:hover { background: var(--secondary); color: var(--text); text-decoration: none; }
-.nav-link.active {
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--primary);
-}
-
-/* Sign out is rendered inside the same nav as the page links so it
-   lives in the hamburger menu on every screen size. Visually it is
-   separated from the page links by a divider and uses a muted color so
-   it reads as a different kind of action, not another page. */
-.nav-link-action {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-.nav-link-signout {
-  color: var(--error);
-  font-weight: 600;
-}
-.nav-link-signout:hover {
-  background: var(--error-soft);
-  color: var(--error);
-}
-.nav-divider {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 22px;
-  background: var(--border);
-  align-self: center;
+  flex: 1 1 auto;
 }
 
 .user-box {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: 0 0 auto;
   margin-left: auto;
 }
 
-.user-info { text-align: right; }
+.user-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.user-trigger:hover { background: var(--secondary); }
+.user-trigger-chevron { color: var(--muted); transition: transform 0.15s; }
+.user-trigger[aria-expanded="true"] .user-trigger-chevron { transform: rotate(180deg); }
+
+.user-info {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  line-height: 1.15;
+}
 .user-name { font-weight: 600; font-size: 13px; }
 .user-role { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
 
+.user-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 20;
+}
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.user-menu-item:hover { background: var(--secondary); }
+.user-menu-item:hover .user-menu-icon { color: var(--error); }
+.user-menu-icon { color: var(--muted); flex: 0 0 auto; }
+
 .app-main {
   flex: 1;
-  padding: 28px 24px;
+  padding: 28px 24px 110px;
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* ---------- Floating bottom pill nav ---------- */
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.bottom-nav-pill {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #1c2030;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(20, 24, 40, 0.25), 0 2px 6px rgba(20, 24, 40, 0.15);
+  pointer-events: auto;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bottom-nav-pill::-webkit-scrollbar { display: none; }
+
+.bottom-nav-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background 0.18s, color 0.18s, transform 0.18s;
+}
+.bottom-nav-link:hover {
+  color: #fff;
+  text-decoration: none;
+}
+.bottom-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  transition: background 0.18s, color 0.18s;
+}
+.bottom-nav-label {
+  letter-spacing: 0.01em;
+}
+.bottom-nav-link.active {
+  color: #fff;
+}
+.bottom-nav-link.active .bottom-nav-icon {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ---------- Page header / cards ---------- */
@@ -603,93 +630,35 @@ tr.attempt-rejected:nth-child(even) { background: var(--warning-soft); }
 @media (max-width: 720px) {
   .form-grid { grid-template-columns: 1fr; }
 
-  /* Stack the header into rows on mobile: brand + hamburger on the top
-     row, user info on its own row below, and the nav collapses into a
-     dropdown panel that opens underneath when the toggle is pressed. */
-  .app-header {
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 10px;
-    padding: 10px 14px;
-  }
-  .brand-row {
-    flex: 1 1 auto;
-    justify-content: space-between;
-  }
+  .app-header { padding: 8px 14px; }
   .brand { font-size: 15px; }
-  .nav-toggle { display: inline-flex; }
-
-  /* User info moves to its own row so it never overlaps the nav. */
-  .user-box {
-    order: 2;
-    flex: 1 1 100%;
-    margin-left: 0;
-    justify-content: space-between;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-  }
-  .user-info { text-align: left; }
   .user-name { font-size: 13px; }
-  .user-role { font-size: 11px; }
+  .user-role { font-size: 10px; }
 
-  /* The horizontal nav becomes a full-width dropdown panel anchored
-     directly below the header. Hidden by default, shown when the
-     header has the .nav-open class set by React state. */
-  .primary-nav {
-    order: 3;
-    flex: 1 1 100%;
-    display: none;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    margin: 0;
-    padding: 8px 0 4px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-  }
-  .app-header.nav-open .primary-nav { display: flex; }
+  .app-main { padding: 20px 16px 110px; }
 
-  /* Mobile nav links: full width, full label, comfortable tap target. */
-  .nav-link {
-    width: 100%;
-    padding: 12px 12px;
-    font-size: 14px;
-    justify-content: flex-start;
-  }
-  .nav-link.active {
-    background: var(--primary-soft);
-    color: var(--primary);
-    font-weight: 600;
-    box-shadow: inset 3px 0 0 var(--primary);
-  }
-
-  /* On mobile the divider between page links and Sign out becomes a
-     full-width horizontal rule and Sign out sits at the bottom of the
-     menu, clearly separated from navigation. */
-  .nav-divider {
-    width: auto;
-    height: 1px;
-    margin: 6px 0;
-  }
-
-  .app-main { padding: 20px 16px; }
+  /* Smaller pill on mobile so 4–5 items still fit comfortably. */
+  .bottom-nav { bottom: 12px; }
+  .bottom-nav-pill { padding: 4px; gap: 2px; }
+  .bottom-nav-link { min-width: 56px; padding: 6px 10px; font-size: 10.5px; }
+  .bottom-nav-icon { width: 32px; height: 32px; }
 }
 
 @media (max-width: 480px) {
-  .app-header { padding: 8px 12px; gap: 8px; }
+  .app-header { padding: 6px 10px; gap: 8px; }
   .brand { font-size: 14px; }
-  .nav-toggle { padding: 5px 10px; font-size: 12px; }
-  .nav-toggle-label { display: none; }
-  .nav-link { padding: 11px 12px; font-size: 14px; }
   .user-name { font-size: 12px; }
-  .user-role { font-size: 10px; }
-  .user-box .btn-secondary { padding: 6px 10px; font-size: 12px; }
+  .user-trigger { padding: 5px 8px; }
+  .bottom-nav-link { min-width: 50px; padding: 6px 8px; font-size: 10px; }
+  .bottom-nav-icon { width: 30px; height: 30px; }
 }
 
 @media (max-width: 400px) {
-  .app-header { padding: 6px 10px; }
+  .app-header { padding: 5px 8px; }
   .brand { font-size: 13px; }
-  .user-box .btn-secondary { padding: 5px 8px; font-size: 11px; }
+  .bottom-nav { bottom: 8px; }
+  .bottom-nav-link { min-width: 46px; padding: 5px 6px; font-size: 9.5px; }
+  .bottom-nav-icon { width: 28px; height: 28px; }
 }
 
 /* ---------- Face capture ---------- */
