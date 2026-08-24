@@ -131,7 +131,7 @@ export default function AppLayout() {
                   }
                   aria-label={label}
                 >
-                  <span className="bottom-nav-icon"><Icon /></span>
+                  <span className="bottom-nav-icon"><Icon size={22} /></span>
                   <span className="bottom-nav-label">{label}</span>
                 </NavLink>
               </li>

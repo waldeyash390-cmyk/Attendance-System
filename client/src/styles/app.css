@@ -285,9 +285,15 @@ a:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #1c2030;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 999px;
-  box-shadow: 0 10px 30px rgba(20, 24, 40, 0.25), 0 2px 6px rgba(20, 24, 40, 0.15);
+  box-shadow:
+    0 8px 24px rgba(20, 24, 40, 0.08),
+    0 2px 6px rgba(20, 24, 40, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   pointer-events: auto;
   max-width: calc(100vw - 32px);
   overflow-x: auto;
@@ -295,16 +301,28 @@ a:hover { text-decoration: underline; }
 }
 .bottom-nav-pill::-webkit-scrollbar { display: none; }
 
+/* Dark glass variant — translucent surface matching the page bg instead
+   of a permanently-dark pill. The 0.72 alpha keeps the page text faintly
+   visible behind it, with the same blur for the frosted effect. */
+[data-theme="dark"] .bottom-nav-pill {
+  background: rgba(24, 27, 36, 0.72);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .bottom-nav-link {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   min-width: 64px;
   padding: 8px 14px;
   border-radius: 999px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--muted);
   text-decoration: none;
   font-size: 11px;
   font-weight: 500;
@@ -313,15 +331,15 @@ a:hover { text-decoration: underline; }
   transition: background 0.18s, color 0.18s, transform 0.18s;
 }
 .bottom-nav-link:hover {
-  color: #fff;
+  color: var(--text);
   text-decoration: none;
 }
 .bottom-nav-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   transition: background 0.18s, color 0.18s;
 }
@@ -329,11 +347,11 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.01em;
 }
 .bottom-nav-link.active {
-  color: #fff;
+  color: var(--primary);
 }
 .bottom-nav-link.active .bottom-nav-icon {
-  background: var(--primary);
-  color: #fff;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 /* ---------- Page header / cards ---------- */
@@ -1144,6 +1162,30 @@ tr.attempt-suspicious:nth-child(even) {
   font-weight: 700;
   letter-spacing: 0.02em;
   user-select: none;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.dashboard-header .dashboard-avatar {
+  width: 72px;
+  height: 72px;
+}
+.dashboard-header .dashboard-avatar .profile-avatar-initials {
+  font-size: 22px;
+}
+.dashboard-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dashboard-header-text h1 {
+  margin: 0;
 }
 
 .profile-photo-controls {

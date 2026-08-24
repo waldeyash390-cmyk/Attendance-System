@@ -1,4 +1,4 @@
-export default function IconCamera({ size = 20 }) {
+export default function IconCamera({ size = 22 }) {
   return (
     <svg
       width={size}
@@ -6,13 +6,13 @@ export default function IconCamera({ size = 20 }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M4 8.5h3l1.5-2h7l1.5 2h3a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1z" />
-      <circle cx="12" cy="13.5" r="3.5" />
+      <path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2.6l1.5-2h5.8l1.5 2h2.6a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 19 20H5a1.5 1.5 0 0 1-1.5-1.5z" />
+      <circle cx="12" cy="13.5" r="3.75" />
     </svg>
   );
 }
