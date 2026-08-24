@@ -1114,6 +1114,21 @@ tr.attempt-suspicious:nth-child(even) {
   margin-top: 14px;
 }
 
+.kv-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.field-with-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field-with-action > input { flex: 1 1 auto; min-width: 0; }
+.btn-call { text-decoration: none; padding: 6px 12px; font-size: 12px; }
+.btn-call:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* Modal overlay used when the page can't accommodate an inline expanded row. */
 .profile-modal-backdrop {
   position: fixed;

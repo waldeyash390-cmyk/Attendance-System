@@ -268,7 +268,21 @@ export function StudentProfilePanel({ student, onProfileUpdated }) {
               <li><span>Full name</span><strong>{profile.fullName || '-'}</strong></li>
               <li><span>Roll number</span><strong>{profile.rollNumber || '-'}</strong></li>
               <li><span>Email</span><strong>{profile.email || '-'}</strong></li>
-              <li><span>Phone number</span><strong>{profile.phoneNumber || '-'}</strong></li>
+              <li>
+                <span>Phone number</span>
+                <strong className="kv-with-action">
+                  <span>{profile.phoneNumber || '-'}</span>
+                  {profile.phoneNumber ? (
+                    <a
+                      className="btn-secondary btn-call"
+                      href={`tel:${profile.phoneNumber.replace(/\s/g, '')}`}
+                      aria-label={`Call ${profile.fullName || 'student'} at ${profile.phoneNumber}`}
+                    >
+                      Call
+                    </a>
+                  ) : null}
+                </strong>
+              </li>
               <li><span>Department</span><strong>{profile.department || '-'}</strong></li>
               <li>
                 <span>Profile lock</span>
@@ -311,14 +325,34 @@ export function StudentProfilePanel({ student, onProfileUpdated }) {
               </label>
               <label>
                 <span>Phone number</span>
-                <input
-                  type="tel"
-                  value={form.phoneNumber}
-                  onChange={(e) => update('phoneNumber', e.target.value)}
-                  required
-                  inputMode="tel"
-                  placeholder="10-15 digits"
-                />
+                <div className="field-with-action">
+                  <input
+                    type="tel"
+                    value={form.phoneNumber}
+                    onChange={(e) => update('phoneNumber', e.target.value)}
+                    required
+                    inputMode="tel"
+                    placeholder="10-15 digits"
+                  />
+                  {form.phoneNumber.trim() ? (
+                    <a
+                      className="btn-secondary btn-call"
+                      href={`tel:${form.phoneNumber.trim().replace(/\s/g, '')}`}
+                      aria-label={`Call ${form.fullName || 'student'} at ${form.phoneNumber}`}
+                    >
+                      Call
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-call"
+                      disabled
+                      title="No phone number on file"
+                    >
+                      Call
+                    </button>
+                  )}
+                </div>
               </label>
               <label className="form-row-full">
                 <span>Department</span>
