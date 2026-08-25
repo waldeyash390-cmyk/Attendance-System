@@ -14,6 +14,7 @@ import IconLogout from './icons/IconLogout';
 import IconChevron from './icons/IconChevron';
 import IconSun from './icons/IconSun';
 import IconMoon from './icons/IconMoon';
+import SignOutConfirmModal from './SignOutConfirmModal';
 
 const TEACHER_NAV = [
   { to: '/', label: 'Dashboard', end: true, Icon: IconDashboard },
@@ -41,10 +42,23 @@ export default function AppLayout() {
             : [];
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const userMenuRef = useRef(null);
 
-  function handleLogout() {
+  // Stage 1 of sign-out: the dropdown item just opens the confirmation
+  // modal. The actual sign-out (token clear + redirect) only happens
+  // after the user clicks "Yes, Sign Out".
+  function handleSignOutClick() {
     setUserMenuOpen(false);
+    setSignOutOpen(true);
+  }
+
+  function cancelSignOut() {
+    setSignOutOpen(false);
+  }
+
+  function performSignOut() {
+    setSignOutOpen(false);
     logout();
     navigate('/login', { replace: true });
   }
@@ -105,7 +119,7 @@ export default function AppLayout() {
                 type="button"
                 className="user-menu-item"
                 role="menuitem"
-                onClick={handleLogout}
+                onClick={handleSignOutClick}
               >
                 <IconLogout className="user-menu-icon" />
                 <span>Sign out</span>
@@ -140,6 +154,12 @@ export default function AppLayout() {
           </ul>
         </nav>
       )}
+
+      <SignOutConfirmModal
+        open={signOutOpen}
+        onConfirm={performSignOut}
+        onCancel={cancelSignOut}
+      />
     </div>
   );
 }

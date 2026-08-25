@@ -22,13 +22,20 @@ function formatDateTime(iso) {
   return d.toLocaleString();
 }
 
+const REASON_PRESETS = [
+  'face changed',
+  'photo unclear',
+  'enrollment error',
+];
+
 export default function FaceEnrollPage() {
   const [status, setStatus] = useState(null);
   const [latestRequest, setLatestRequest] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('initial'); // initial | change | locked
+  const [mode, setMode] = useState('locked'); // change | locked
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [reason, setReason] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -72,17 +79,32 @@ export default function FaceEnrollPage() {
     setMessage('');
     setError('');
     try {
-      // The server only needs the photo for the pending request, but we
-      // also recompute the descriptor so live attendance still works for
-      // students whose face has actually changed.
-      const result = await submitFaceUpdateRequest({ photo, reason: null });
-      setMessage('Face change request submitted. A teacher will review and approve it.');
+      const trimmedReason = reason.trim();
+      const result = await submitFaceUpdateRequest({
+        photo,
+        reason: trimmedReason || null,
+      });
+      setMessage('Face re-enrollment request submitted. A teacher will review and approve it.');
       setLatestRequest(result.request);
       setMode('locked');
+      setReason('');
     } catch (err) {
-      setError(extractError(err, 'Failed to submit face change request'));
+      setError(extractError(err, 'Failed to submit face re-enrollment request'));
       throw err;
     }
+  }, [reason]);
+
+  const openRequestForm = useCallback(() => {
+    setReason('');
+    setError('');
+    setMessage('');
+    setMode('change');
+  }, []);
+
+  const cancelRequestForm = useCallback(() => {
+    setReason('');
+    setError('');
+    setMode('locked');
   }, []);
 
   const face = status && status.face;
@@ -132,7 +154,7 @@ export default function FaceEnrollPage() {
 
       {!loading && pending && (
         <div className="alert info">
-          You have a pending face change request submitted on{' '}
+          You have a pending face re-enrollment request submitted on{' '}
           <strong>{formatDateTime(latestRequest.requestedAt)}</strong>.
           A teacher will review it shortly. You cannot submit another request until this one is closed.
         </div>
@@ -163,34 +185,82 @@ export default function FaceEnrollPage() {
       {!loading && enrolled && mode === 'change' && !pending && (
         <div className="card">
           <div className="card-header">
-            <h2>Request face change</h2>
-            <button type="button" className="link-button" onClick={() => setMode('locked')}>
+            <h2>Request face re-enrollment</h2>
+            <button type="button" className="btn-link" onClick={cancelRequestForm}>
               Cancel
             </button>
           </div>
           <p className="muted">
-            Take a fresh photo. It will be sent to your teacher for approval. Your
-            current enrolled face will stay active until the teacher approves the change.
+            Tell us why you need a re-enrollment, then take a fresh photo. Your current
+            enrolled face will stay active until a teacher approves the change.
           </p>
+
+          <div className="form-row">
+            <label>
+              <span>Reason (optional)</span>
+              <select
+                value={REASON_PRESETS.includes(reason) ? reason : (reason ? '__custom__' : '')}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__custom__') setReason('');
+                  else setReason(v);
+                }}
+              >
+                <option value="">Select a reason…</option>
+                {REASON_PRESETS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+                <option value="__custom__">Other (type below)</option>
+              </select>
+            </label>
+          </div>
+
+          {!REASON_PRESETS.includes(reason) && (
+            <div className="form-row">
+              <label>
+                <span>Custom reason</span>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="e.g. glasses, beard, recent haircut"
+                  maxLength={200}
+                />
+              </label>
+            </div>
+          )}
+
           <FaceCapture
             onCapture={handleSubmitChange}
-            buttonLabel="Submit change request"
+            buttonLabel="Submit re-enrollment request"
             captureSnapshot
           />
         </div>
       )}
 
-      {!loading && enrolled && mode === 'locked' && !pending && (
+      {!loading && enrolled && mode === 'locked' && (
         <div className="card">
           <div className="card-header"><h2>Enrolled</h2></div>
-          <p>Your face is locked. You can only change it by submitting a request for teacher approval.</p>
-          <button
-            type="button"
-            onClick={() => setMode('change')}
-            disabled={Boolean(pending)}
-          >
-            Request face change
-          </button>
+
+          {pending ? (
+            <>
+              <p>Your face is locked while a re-enrollment request is pending teacher approval.</p>
+              <div className="status-pill" role="status" aria-live="polite">
+                <span className="status-pill-dot" />
+                Request Pending Teacher Approval
+              </div>
+            </>
+          ) : (
+            <>
+              <p>Your face is locked. You can only change it by submitting a request for teacher approval.</p>
+              <button
+                type="button"
+                onClick={openRequestForm}
+              >
+                Request face re-enrollment
+              </button>
+            </>
+          )}
         </div>
       )}
     </section>

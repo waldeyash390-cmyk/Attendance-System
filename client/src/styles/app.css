@@ -1307,3 +1307,292 @@ tr.attempt-suspicious:nth-child(even) {
   .profile-avatar-initials { font-size: 22px; }
   .profile-modal { max-height: calc(100vh - 24px); }
 }
+
+/* ---------- Tabs (Pending / Approved / Rejected) ---------- */
+
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tab:hover:not(.active) { color: var(--text); background: var(--secondary); }
+.tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* ---------- Alerts (info variant, used for pending requests) ---------- */
+
+.alert.info {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: #c7d6ff;
+}
+[data-theme="dark"] .alert.info { border-color: #2c3a66; }
+
+/* ---------- Face change request cards ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.face-request-card {
+  /* reuses .card, just gives a hook for future tweaks */
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.row.gap { gap: 12px; }
+
+button.danger {
+  background: var(--error);
+  color: #fff;
+  border: 1px solid var(--error);
+}
+button.danger:hover:not(:disabled) {
+  background: #95201a;
+  border-color: #95201a;
+}
+button.danger:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.face-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 12px 0;
+}
+@media (max-width: 560px) {
+  .face-compare { grid-template-columns: 1fr; }
+}
+.face-compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.face-compare-col img {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  display: block;
+}
+
+/* Status badges for face update requests. Uses the existing soft-color
+   tokens so they blend with the rest of the app on both themes. */
+.badge-pending  { background: var(--warning-soft); color: var(--warning); }
+.badge-approved { background: var(--success-soft); color: var(--success); }
+.badge-rejected { background: var(--error-soft);   color: var(--error);   }
+
+/* ---------- Inline link-styled button (used in card headers) ---------- */
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.btn-link:hover { background: var(--primary-soft); text-decoration: underline; }
+
+/* ---------- Single-column form row (label + input/select) ---------- */
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.form-row > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-row > label > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.form-row input,
+.form-row select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+/* ---------- Status pill (used while a request is pending) ---------- */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid #f0d68b;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.status-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 0 rgba(138, 90, 0, 0.45);
+  animation: status-pill-pulse 1.6s infinite;
+}
+@keyframes status-pill-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(138, 90, 0, 0.45); }
+  70%  { box-shadow: 0 0 0 8px rgba(138, 90, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(138, 90, 0, 0); }
+}
+[data-theme="dark"] .status-pill { border-color: #5a4213; }
+
+/* ---------- Confirmation modal (shared, used by sign-out etc.) ---------- */
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+  animation: confirm-backdrop-in 140ms ease-out;
+}
+@keyframes confirm-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.confirm-modal {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 420px;
+  padding: 22px 22px 18px;
+  animation: confirm-modal-in 160ms ease-out;
+}
+@keyframes confirm-modal-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+.confirm-modal h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.confirm-modal p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.confirm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.confirm-btn-secondary,
+.confirm-btn-primary {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
+  border: 1px solid transparent;
+}
+
+.confirm-btn-secondary {
+  background: var(--secondary);
+  color: var(--text);
+  border-color: var(--border);
+}
+.confirm-btn-secondary:hover:not(:disabled) {
+  background: var(--secondary-hover);
+  border-color: var(--border-strong);
+}
+
+.confirm-btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.confirm-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+.confirm-btn-primary:active,
+.confirm-btn-secondary:active { transform: translateY(1px); }
+
+.confirm-btn-primary:focus-visible,
+.confirm-btn-secondary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .confirm-modal { padding: 20px 18px 16px; }
+  .confirm-modal-actions { flex-direction: column-reverse; }
+  .confirm-btn-secondary,
+  .confirm-btn-primary { width: 100%; }
+}
