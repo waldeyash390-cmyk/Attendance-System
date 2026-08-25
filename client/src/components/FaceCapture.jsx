@@ -26,6 +26,28 @@ const DETECTOR_OPTIONS = { inputSize: 320, scoreThreshold: 0.45 };
 // several seconds while the student wonders what's happening.
 const DESCRIPTOR_MAX_TRIES = 1;
 
+// Snap a JPEG frame from the live <video> element. Used by the enrollment
+// and update-request flows so the server has a real photo to display next
+// to the descriptor (and so the teacher can compare old vs new visually).
+function snapshotFrame(video) {
+  if (!video || !video.videoWidth || !video.videoHeight) return null;
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  const max = 480;
+  const scale = Math.min(1, max / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  try {
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } catch (err) {
+    return null;
+  }
+}
+
 function readLivenessMode() {
   const env =
     (typeof import.meta !== 'undefined' && import.meta.env
@@ -49,6 +71,7 @@ export default function FaceCapture({
   buttonLabel = 'Capture face',
   requireLiveness = false,
   busyLabel = 'Working...',
+  captureSnapshot = false,
 }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -204,8 +227,12 @@ export default function FaceCapture({
         ? `Liveness confirmed (${livenessMethod || 'fast'}). Marking attendance...`
         : 'Face captured. Marking attendance...');
 
+      const photo = captureSnapshot && videoRef.current ? snapshotFrame(videoRef.current) : null;
+
       if (requireLiveness) {
-        await onCapture({ descriptor, livenessPassed, livenessMethod });
+        await onCapture({ descriptor, livenessPassed, livenessMethod, photo });
+      } else if (photo) {
+        await onCapture({ descriptor, photo });
       } else {
         await onCapture(descriptor);
       }
@@ -214,7 +241,7 @@ export default function FaceCapture({
     } finally {
       setBusy(false);
     }
-  }, [busy, captureDescriptor, effectiveLiveness, onCapture, requireLiveness]);
+  }, [busy, captureDescriptor, effectiveLiveness, onCapture, requireLiveness, captureSnapshot]);
 
   useEffect(() => () => {
     cancelledRef.current = true;

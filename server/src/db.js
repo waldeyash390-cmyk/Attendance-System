@@ -36,4 +36,27 @@ async function close() {
   await pool.end();
 }
 
-module.exports = { pool, query, ping, close };
+// Runs `fn(client)` inside a single BEGIN/COMMIT transaction. On any throw
+// the work is rolled back and the error re-thrown. Used by the face
+// enrollment + update-request endpoints so the lock check + write happen
+// atomically.
+async function withTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      console.error('[db] rollback failed', rbErr);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { pool, query, ping, close, withTransaction };

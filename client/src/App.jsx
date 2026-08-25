@@ -12,6 +12,7 @@ import SessionsPage from './pages/SessionsPage';
 import LiveDashboardPage from './pages/LiveDashboardPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import StudentProfilePage from './pages/StudentProfilePage';
+import TeacherFaceRequestsPage from './pages/TeacherFaceRequestsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -70,6 +71,14 @@ export default function App() {
               element={
                 <ProtectedRoute roles={['teacher', 'admin']}>
                   <AnalyticsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="face-requests"
+              element={
+                <ProtectedRoute roles={['teacher', 'admin']}>
+                  <TeacherFaceRequestsPage />
                 </ProtectedRoute>
               }
             />

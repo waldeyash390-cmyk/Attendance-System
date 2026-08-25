@@ -21,6 +21,7 @@ const TEACHER_NAV = [
   { to: '/sessions', label: 'Lectures', Icon: IconCalendar },
   { to: '/attendance', label: 'Attendance', Icon: IconClipboard },
   { to: '/analytics', label: 'Analytics', Icon: IconChart },
+  { to: '/face-requests', label: 'Face Requests', Icon: IconCamera },
 ];
 
 const STUDENT_NAV = [
